@@ -10,19 +10,6 @@ export type Environment = {
   variables: KeyValue[];
 };
 
-export type WorkspaceSettings = {
-  description?: string;
-};
-
-export type Workspace = {
-  id: string;
-  name: string;
-  collectionNodes: CollectionNode[];
-  environments: Environment[];
-  activeEnvironmentId: string | null;
-  settings: WorkspaceSettings;
-};
-
 export type BodyType = "none" | "form-data" | "x-www-form-urlencoded" | "raw" | "binary";
 
 export type RawType = "text" | "javascript" | "json" | "html" | "xml";
@@ -86,6 +73,33 @@ export type RequestData = {
   settings: RequestSettings;
 };
 
+export type RequestTab = {
+  id: string;
+  collectionId: string | null;
+  requestType: RequestType;
+  method: string;
+  url: string;
+  params: KeyValue[];
+  headers: KeyValue[];
+  authType: AuthType;
+  authData: AuthData;
+  bodyType: BodyType;
+  rawType: RawType;
+  bodyJson: string;
+  bodyFormData: KeyValue[];
+  bodyUrlEncoded: KeyValue[];
+  settings: RequestSettings;
+  responseCode: number | null;
+  responseStatus: string;
+  responseTime: number;
+  responseSize: number;
+  responseRaw: string;
+  responsePretty: string;
+  responseHeaders: [string, string][];
+  errorMessage: string | null;
+  responseLanguage: string;
+};
+
 export type CollectionRequest = {
   id: string;
   type: "request";
@@ -101,3 +115,19 @@ export type CollectionFolder = {
 };
 
 export type CollectionNode = CollectionFolder | CollectionRequest;
+
+export type WorkspaceSettings = {
+  description?: string;
+};
+
+export type Workspace = {
+  id: string;
+  name: string;
+  collectionNodes: CollectionNode[];
+  environments: Environment[];
+  activeEnvironmentId: string | null;
+  tabs: RequestTab[];
+  activeTabId: string | null;
+  history: HistoryItem[];
+  settings: WorkspaceSettings;
+};

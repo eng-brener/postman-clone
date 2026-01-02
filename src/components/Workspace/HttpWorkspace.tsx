@@ -3,7 +3,7 @@ import { AuthData, AuthDataType, AuthType, BodyType, CookieEntry, KeyValue, RawT
 import { RequestPane } from "./RequestPane";
 import { ResponsePane } from "./ResponsePane";
 import { UrlBar } from "./UrlBar";
-import { useState, useEffect } from "react";
+import { useEffect, useState, type HTMLAttributes, type Ref } from "react";
 import { useI18n } from "../../i18n";
 
 interface HttpWorkspaceProps {
@@ -177,8 +177,8 @@ export const HttpWorkspace = ({
           }}
           handle={(hProps, ref) => (
              <div 
-                {...hProps} 
-                ref={ref} 
+                {...(hProps as HTMLAttributes<HTMLDivElement>)} 
+                ref={ref as Ref<HTMLDivElement>} 
                 className="react-resizable-handle" 
                 title={t("app.dragResize")}
              />

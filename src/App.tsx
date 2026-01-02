@@ -24,6 +24,7 @@ import {
   RequestData,
   RequestSettings,
   RequestType,
+  RequestTab,
   Workspace,
 } from "./types";
 import { REQUEST_TYPE_OPTIONS, getDefaultMethodForType, getRequestTypeLabel } from "./lib/request";
@@ -308,31 +309,29 @@ const normalizeEnvironmentList = (value: unknown, fallback: Environment[]): Envi
   return normalized.length > 0 ? normalized : fallback;
 };
 
-type RequestTab = {
-  id: string;
-  collectionId: string | null;
-  requestType: RequestType;
-  method: string;
-  url: string;
-  params: KeyValue[];
-  headers: KeyValue[];
-  authType: AuthType;
-  authData: AuthData;
-  bodyType: BodyType;
-  rawType: RawType;
-  bodyJson: string;
-  bodyFormData: KeyValue[];
-  bodyUrlEncoded: KeyValue[];
-  settings: RequestSettings;
-  responseCode: number | null;
-  responseStatus: string;
-  responseTime: number;
-  responseSize: number;
-  responseRaw: string;
-  responsePretty: string;
-  responseHeaders: [string, string][];
-  errorMessage: string | null;
-  responseLanguage: string;
+const normalizeHistory = (value: unknown): HistoryItem[] => {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return value
+    .map((item) => {
+      if (!item || typeof item !== "object") {
+        return null;
+      }
+      const record = item as Partial<HistoryItem>;
+      if (typeof record.id !== "string") {
+        return null;
+      }
+      return {
+        id: record.id,
+        method: typeof record.method === "string" ? record.method : "GET",
+        url: typeof record.url === "string" ? record.url : "",
+        status: typeof record.status === "string" ? record.status : "--",
+        timeMs: typeof record.timeMs === "number" ? record.timeMs : 0,
+        pinned: typeof record.pinned === "boolean" ? record.pinned : false,
+      } as HistoryItem;
+    })
+    .filter((item): item is HistoryItem => Boolean(item));
 };
 
 function App() {
@@ -366,6 +365,51 @@ function App() {
     bearer: { ...source.bearer },
     basic: { ...source.basic },
   });
+
+  const cloneRequestData = (source: RequestData): RequestData => ({
+    requestType: source.requestType,
+    method: source.method,
+    url: source.url,
+    params: cloneKeyValues(source.params),
+    headers: cloneKeyValues(source.headers),
+    authType: source.authType,
+    authData: cloneAuthData(source.authData),
+    bodyType: source.bodyType,
+    rawType: source.rawType,
+    bodyJson: source.bodyJson,
+    bodyFormData: cloneKeyValues(source.bodyFormData),
+    bodyUrlEncoded: cloneKeyValues(source.bodyUrlEncoded),
+    settings: { ...source.settings },
+  });
+
+  const cloneCollectionNodes = (nodes: CollectionNode[]): CollectionNode[] =>
+    nodes.map((node) => {
+      if (node.type === "folder") {
+        return { ...node, children: cloneCollectionNodes(node.children) };
+      }
+      return { ...node, request: cloneRequestData(node.request) };
+    });
+
+  const cloneEnvironments = (list: Environment[]): Environment[] =>
+    list.map((env) => ({
+      ...env,
+      variables: cloneKeyValues(env.variables),
+    }));
+
+  const cloneRequestTabs = (list: RequestTab[]): RequestTab[] =>
+    list.map((tab) => ({
+      ...tab,
+      params: cloneKeyValues(tab.params),
+      headers: cloneKeyValues(tab.headers),
+      authData: cloneAuthData(tab.authData),
+      bodyFormData: cloneKeyValues(tab.bodyFormData),
+      bodyUrlEncoded: cloneKeyValues(tab.bodyUrlEncoded),
+      settings: { ...tab.settings },
+      responseHeaders: tab.responseHeaders.map(([key, value]) => [key, value]),
+    }));
+
+  const cloneHistory = (list: HistoryItem[]): HistoryItem[] =>
+    list.map((item) => ({ ...item }));
 
   const buildRequestData = (method: string, url: string, requestType: RequestType = "http"): RequestData => ({
     requestType,
@@ -537,19 +581,115 @@ function App() {
     },
   ];
 
+  const createDefaultTab = (): RequestTab => ({
+    id: `tab-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+    collectionId: null,
+    requestType: "http",
+    method: "GET",
+    url: "https://catfact.ninja/fact",
+    params: [emptyRow()],
+    headers: cloneKeyValues(defaultHeadersList),
+    authType: "none",
+    authData: cloneAuthData(defaultAuthData),
+    bodyType: "none",
+    rawType: "json",
+    bodyJson: defaultBodyJson,
+    bodyFormData: [emptyRow()],
+    bodyUrlEncoded: [emptyRow()],
+    settings: { ...defaultSettings },
+    responseCode: null,
+    responseStatus: "--",
+    responseTime: 0,
+    responseSize: 0,
+    responseRaw: "",
+    responsePretty: "",
+    responseHeaders: [],
+    errorMessage: null,
+    responseLanguage: "plaintext",
+  });
+
+  const normalizeRequestTabs = (value: unknown, fallbackFactory: () => RequestTab): RequestTab[] => {
+    if (!Array.isArray(value)) {
+      return [fallbackFactory()];
+    }
+    const normalized = value
+      .map((item) => {
+        if (!item || typeof item !== "object") {
+          return null;
+        }
+        const record = item as Partial<RequestTab>;
+        const fallback = fallbackFactory();
+        const requestData = normalizeRequestData(record);
+        const responseHeaders = Array.isArray(record.responseHeaders)
+          ? record.responseHeaders
+              .map((entry) => {
+                if (!Array.isArray(entry) || entry.length !== 2) {
+                  return null;
+                }
+                const [key, val] = entry;
+                if (typeof key !== "string" || typeof val !== "string") {
+                  return null;
+                }
+                return [key, val] as [string, string];
+              })
+              .filter((entry): entry is [string, string] => Boolean(entry))
+          : fallback.responseHeaders;
+        return {
+          ...fallback,
+          id: typeof record.id === "string" ? record.id : fallback.id,
+          collectionId: typeof record.collectionId === "string" ? record.collectionId : null,
+          requestType: requestData.requestType,
+          method: requestData.method,
+          url: requestData.url,
+          params: cloneKeyValues(requestData.params),
+          headers: cloneKeyValues(requestData.headers),
+          authType: requestData.authType,
+          authData: cloneAuthData(requestData.authData),
+          bodyType: requestData.bodyType,
+          rawType: requestData.rawType,
+          bodyJson: requestData.bodyJson,
+          bodyFormData: cloneKeyValues(requestData.bodyFormData),
+          bodyUrlEncoded: cloneKeyValues(requestData.bodyUrlEncoded),
+          settings: { ...requestData.settings },
+          responseCode: typeof record.responseCode === "number" ? record.responseCode : fallback.responseCode,
+          responseStatus: typeof record.responseStatus === "string" ? record.responseStatus : fallback.responseStatus,
+          responseTime: typeof record.responseTime === "number" ? record.responseTime : fallback.responseTime,
+          responseSize: typeof record.responseSize === "number" ? record.responseSize : fallback.responseSize,
+          responseRaw: typeof record.responseRaw === "string" ? record.responseRaw : fallback.responseRaw,
+          responsePretty: typeof record.responsePretty === "string" ? record.responsePretty : fallback.responsePretty,
+          responseHeaders,
+          errorMessage: typeof record.errorMessage === "string" ? record.errorMessage : fallback.errorMessage,
+          responseLanguage:
+            typeof record.responseLanguage === "string" ? record.responseLanguage : fallback.responseLanguage,
+        } as RequestTab;
+      })
+      .filter((tab): tab is RequestTab => Boolean(tab));
+    return normalized.length > 0 ? normalized : [fallbackFactory()];
+  };
+
   const createWorkspace = (
     name = "New Workspace",
-    overrides?: Partial<Pick<Workspace, "collectionNodes" | "environments" | "activeEnvironmentId" | "settings">>
+    overrides?: Partial<
+      Pick<
+        Workspace,
+        "collectionNodes" | "environments" | "activeEnvironmentId" | "settings" | "tabs" | "activeTabId" | "history"
+      >
+    >
   ): Workspace => {
     const environments = overrides?.environments ?? createDefaultEnvironments();
     const activeEnvironmentId =
       overrides?.activeEnvironmentId ?? environments[0]?.id ?? null;
+    const tabs = overrides?.tabs ?? [createDefaultTab()];
+    const activeTabId = overrides?.activeTabId ?? tabs[0]?.id ?? null;
     return {
       id: `ws-${Date.now()}-${Math.random().toString(16).slice(2)}`,
       name,
       collectionNodes: overrides?.collectionNodes ?? createInitialCollectionTree(),
       environments,
       activeEnvironmentId,
+      tabs,
+      activeTabId,
+      history: overrides?.history ?? [],
       settings: overrides?.settings ?? {},
     };
   };
@@ -577,45 +717,27 @@ function App() {
             : environments[0]?.id ?? null;
         const settings =
           record.settings && typeof record.settings === "object" ? { ...record.settings } : {};
+        const tabs = normalizeRequestTabs(record.tabs, createDefaultTab);
+        const activeTabId =
+          typeof record.activeTabId === "string" && tabs.some((tab) => tab.id === record.activeTabId)
+            ? record.activeTabId
+            : tabs[0]?.id ?? null;
+        const history = normalizeHistory(record.history);
         return {
           id,
           name,
           collectionNodes: collectionNodes.length > 0 ? collectionNodes : createInitialCollectionTree(),
           environments,
           activeEnvironmentId: safeActiveEnv,
+          tabs,
+          activeTabId,
+          history,
           settings,
         } as Workspace;
       })
       .filter((ws): ws is Workspace => Boolean(ws));
     return normalized.length > 0 ? normalized : fallback;
   };
-
-  const createDefaultTab = (): RequestTab => ({
-    id: `tab-${Date.now()}-${Math.random().toString(16).slice(2)}`,
-    collectionId: null,
-    requestType: "http",
-    method: "GET",
-    url: "https://catfact.ninja/fact",
-    params: [emptyRow()],
-    headers: cloneKeyValues(defaultHeadersList),
-    authType: "none",
-    authData: cloneAuthData(defaultAuthData),
-    bodyType: "none",
-    rawType: "json",
-    bodyJson: defaultBodyJson,
-    bodyFormData: [emptyRow()],
-    bodyUrlEncoded: [emptyRow()],
-    settings: { ...defaultSettings },
-    responseCode: null,
-    responseStatus: "--",
-    responseTime: 0,
-    responseSize: 0,
-    responseRaw: "",
-    responsePretty: "",
-    responseHeaders: [],
-    errorMessage: null,
-    responseLanguage: "plaintext",
-  });
 
   const getLegacyCollectionNodes = (): CollectionNode[] => {
     try {
@@ -691,9 +813,18 @@ function App() {
     }
   });
 
-  const [collectionNodes, setCollectionNodes] = useState<CollectionNode[]>(createInitialCollectionTree);
-  const [environments, setEnvironments] = useState<Environment[]>(createDefaultEnvironments);
-  const [activeEnvironmentId, setActiveEnvironmentId] = useState<string | null>("env-default");
+  const initialWorkspace =
+    workspaces.find((ws) => ws.id === activeWorkspaceId) ?? workspaces[0] ?? null;
+
+  const [collectionNodes, setCollectionNodes] = useState<CollectionNode[]>(
+    () => initialWorkspace?.collectionNodes ?? createInitialCollectionTree()
+  );
+  const [environments, setEnvironments] = useState<Environment[]>(
+    () => initialWorkspace?.environments ?? createDefaultEnvironments()
+  );
+  const [activeEnvironmentId, setActiveEnvironmentId] = useState<string | null>(
+    () => initialWorkspace?.activeEnvironmentId ?? initialWorkspace?.environments[0]?.id ?? null
+  );
 
   const [theme, setTheme] = useState<ThemeOption>(() => {
     if (typeof window === "undefined" || !("localStorage" in window)) {
@@ -706,6 +837,9 @@ function App() {
   useEffect(() => {
     try {
       window.localStorage.setItem(WORKSPACE_STORAGE_KEY, JSON.stringify(workspaces));
+      window.localStorage.removeItem(COLLECTION_STORAGE_KEY);
+      window.localStorage.removeItem(ENV_STORAGE_KEY);
+      window.localStorage.removeItem(ACTIVE_ENV_STORAGE_KEY);
     } catch {
       // ignore persistence failures
     }
@@ -722,6 +856,7 @@ function App() {
       // ignore persistence failures
     }
   }, [activeWorkspaceId]);
+
 
   useEffect(() => {
     try {
@@ -757,6 +892,15 @@ function App() {
     setActiveEnvironmentId(
       currentWorkspace.activeEnvironmentId ?? currentWorkspace.environments[0]?.id ?? null
     );
+    setTabs(currentWorkspace.tabs);
+    setHistory(currentWorkspace.history);
+    const nextActiveTabId = currentWorkspace.activeTabId ?? currentWorkspace.tabs[0]?.id ?? null;
+    setActiveTabId(nextActiveTabId);
+    const nextTab =
+      currentWorkspace.tabs.find((tab) => tab.id === nextActiveTabId) ?? currentWorkspace.tabs[0];
+    if (nextTab) {
+      loadTab(nextTab);
+    }
   }, [activeWorkspaceId]);
 
   useEffect(() => {
@@ -792,8 +936,12 @@ function App() {
     }
   }, [activeEnvironmentId, environments]);
 
-  const [tabs, setTabs] = useState<RequestTab[]>([createDefaultTab()]);
-  const [activeTabId, setActiveTabId] = useState<string | null>(tabs[0].id);
+  const [tabs, setTabs] = useState<RequestTab[]>(
+    () => initialWorkspace?.tabs ?? [createDefaultTab()]
+  );
+  const [activeTabId, setActiveTabId] = useState<string | null>(
+    () => initialWorkspace?.activeTabId ?? initialWorkspace?.tabs[0]?.id ?? null
+  );
 
   // Request State
   const [requestType, setRequestType] = useState<RequestType>(tabs[0].requestType);
@@ -835,7 +983,34 @@ function App() {
   const [responseLanguage, setResponseLanguage] = useState(tabs[0].responseLanguage);
   
   // History
-  const [history, setHistory] = useState<HistoryItem[]>([]);
+  const [history, setHistory] = useState<HistoryItem[]>(() => initialWorkspace?.history ?? []);
+
+  useEffect(() => {
+    if (!activeWorkspaceId) {
+      return;
+    }
+    setWorkspaces((prev) =>
+      prev.map((ws) => (ws.id === activeWorkspaceId ? { ...ws, tabs } : ws))
+    );
+  }, [tabs, activeWorkspaceId]);
+
+  useEffect(() => {
+    if (!activeWorkspaceId) {
+      return;
+    }
+    setWorkspaces((prev) =>
+      prev.map((ws) => (ws.id === activeWorkspaceId ? { ...ws, activeTabId } : ws))
+    );
+  }, [activeTabId, activeWorkspaceId]);
+
+  useEffect(() => {
+    if (!activeWorkspaceId) {
+      return;
+    }
+    setWorkspaces((prev) =>
+      prev.map((ws) => (ws.id === activeWorkspaceId ? { ...ws, history } : ws))
+    );
+  }, [history, activeWorkspaceId]);
 
   useEffect(() => {
     getName().then((n) => setAppName(n || "Postman Clone")).catch(() => {});
@@ -916,22 +1091,6 @@ function App() {
       return null;
     }
   }, [requestUrl]);
-
-  const applyRequestData = (data: RequestData) => {
-    setRequestType(data.requestType);
-    setMethod(data.method);
-    setUrl(data.url);
-    setSettings({ ...data.settings });
-    setAuthType(data.authType);
-    setAuthData(cloneAuthData(data.authData));
-    setParamsList(cloneKeyValues(data.params));
-    setHeadersList(cloneKeyValues(data.headers));
-    setBodyType(data.bodyType);
-    setRawType(data.rawType);
-    setBodyJson(data.bodyJson);
-    setBodyFormDataList(cloneKeyValues(data.bodyFormData));
-    setBodyUrlEncodedList(cloneKeyValues(data.bodyUrlEncoded));
-  };
 
   const tabToRequestData = (tab: RequestTab): RequestData => ({
     requestType: tab.requestType,
@@ -1104,19 +1263,21 @@ function App() {
     if (!activeTabId) {
       return;
     }
-    let nextTab: RequestTab | null = null;
-    setTabs((prev) =>
-      prev.map((tab) => {
+    setTabs((prev) => {
+      let nextTab: RequestTab | null = null;
+      const nextTabs = prev.map((tab) => {
         if (tab.id !== activeTabId) {
           return tab;
         }
         nextTab = updater(tab);
         return nextTab;
-      })
-    );
-    if (nextTab?.collectionId) {
-      updateCollectionRequest(nextTab.collectionId, tabToRequestData(nextTab));
-    }
+      });
+      const updated = nextTab as RequestTab | null;
+      if (updated && updated.collectionId) {
+        updateCollectionRequest(updated.collectionId, tabToRequestData(updated));
+      }
+      return nextTabs;
+    });
   };
 
   const updateKeyValueList = (
@@ -1153,7 +1314,41 @@ function App() {
     setWorkspaces((prev) => prev.map((ws) => (ws.id === id ? { ...ws, name } : ws)));
   };
 
+  const handleWorkspaceDuplicate = (id: string) => {
+    const source = workspaces.find((ws) => ws.id === id);
+    if (!source) {
+      return;
+    }
+    const next = createWorkspace(`${source.name} Copy`, {
+      collectionNodes: cloneCollectionNodes(source.collectionNodes),
+      environments: cloneEnvironments(source.environments),
+      activeEnvironmentId: source.activeEnvironmentId,
+      tabs: cloneRequestTabs(source.tabs),
+      activeTabId: source.activeTabId,
+      history: cloneHistory(source.history),
+      settings: { ...source.settings },
+    });
+    setWorkspaces((prev) => [...prev, next]);
+    setActiveWorkspaceId(next.id);
+  };
+
+  const handleWorkspaceSettingsChange = (id: string, patch: Workspace["settings"]) => {
+    setWorkspaces((prev) =>
+      prev.map((ws) => (ws.id === id ? { ...ws, settings: { ...ws.settings, ...patch } } : ws))
+    );
+  };
+
   const handleWorkspaceDelete = (id: string) => {
+    const target = workspaces.find((ws) => ws.id === id);
+    if (!target || workspaces.length <= 1) {
+      return;
+    }
+    const confirmMessage = t("app.workspaceDeleteConfirm", {
+      name: target.name || t("app.workspace"),
+    });
+    if (typeof window !== "undefined" && !window.confirm(confirmMessage)) {
+      return;
+    }
     setWorkspaces((prev) => {
       if (prev.length <= 1) {
         return prev;
@@ -1742,7 +1937,9 @@ function App() {
         onWorkspaceChange={handleWorkspaceChange}
         onWorkspaceAdd={handleWorkspaceAdd}
         onWorkspaceRename={handleWorkspaceRename}
+        onWorkspaceDuplicate={handleWorkspaceDuplicate}
         onWorkspaceDelete={handleWorkspaceDelete}
+        onWorkspaceSettingsChange={handleWorkspaceSettingsChange}
         collectionNodes={collectionNodes}
         setCollectionNodes={setCollectionNodes}
         buildRequestData={buildRequestData}

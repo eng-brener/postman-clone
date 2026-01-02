@@ -39,7 +39,9 @@ interface SidebarProps {
   onWorkspaceChange: (id: string | null) => void;
   onWorkspaceAdd: () => void;
   onWorkspaceRename: (id: string, name: string) => void;
+  onWorkspaceDuplicate: (id: string) => void;
   onWorkspaceDelete: (id: string) => void;
+  onWorkspaceSettingsChange: (id: string, settings: Workspace["settings"]) => void;
   collectionNodes: CollectionNode[];
   setCollectionNodes: Dispatch<SetStateAction<CollectionNode[]>>;
   buildRequestData: (method: string, url: string, requestType?: RequestType) => RequestData;
@@ -121,7 +123,9 @@ export const Sidebar = ({
   onWorkspaceChange,
   onWorkspaceAdd,
   onWorkspaceRename,
+  onWorkspaceDuplicate,
   onWorkspaceDelete,
+  onWorkspaceSettingsChange,
   collectionNodes,
   setCollectionNodes,
   buildRequestData,
@@ -1088,7 +1092,14 @@ export const Sidebar = ({
           onDragOver={handleDragOverRoot}
           onDrop={handleDropOnRoot}
         >
-          <span>{t("app.collection")}</span>
+          <div className="menu-label-group">
+            <span>{t("app.collection")}</span>
+            {activeWorkspace && (
+              <span className="workspace-badge">
+                {t("app.workspaceBadge", { name: activeWorkspace.name || t("app.workspace") })}
+              </span>
+            )}
+          </div>
           <button
             type="button"
             className="menu-action"
@@ -1481,6 +1492,13 @@ export const Sidebar = ({
                       <div className="env-main-actions">
                         <button
                           type="button"
+                          className="env-button"
+                          onClick={() => onWorkspaceDuplicate(activeWorkspace.id)}
+                        >
+                          {t("app.workspaceDuplicate")}
+                        </button>
+                        <button
+                          type="button"
                           className="env-button danger"
                           onClick={() => onWorkspaceDelete(activeWorkspace.id)}
                           disabled={workspaces.length <= 1}
@@ -1488,6 +1506,19 @@ export const Sidebar = ({
                           {t("app.workspaceDelete")}
                         </button>
                       </div>
+                    </div>
+                    <div className="env-name-field">
+                      <label className="modal-label" htmlFor="workspace-description-input">
+                        {t("app.workspaceDescriptionLabel")}
+                      </label>
+                      <textarea
+                        id="workspace-description-input"
+                        className="modal-input workspace-description"
+                        value={activeWorkspace.settings.description ?? ""}
+                        onChange={(event) =>
+                          onWorkspaceSettingsChange(activeWorkspace.id, { description: event.target.value })
+                        }
+                      />
                     </div>
                     <div className="modal-text">{t("app.workspaceSubtitle")}</div>
                   </>

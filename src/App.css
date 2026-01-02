@@ -111,6 +111,23 @@ body {
   gap: 8px;
 }
 
+.menu-label-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.workspace-badge {
+  font-size: 0.65rem;
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--text-dim);
+  background: var(--muted-bg);
+  border: 1px solid var(--border-subtle);
+  padding: 2px 6px;
+  border-radius: 999px;
+}
+
 .menu-label.drop-target-root {
   position: relative;
   color: var(--text-main);
@@ -534,6 +551,11 @@ body {
 .env-main-actions {
   display: flex;
   gap: 8px;
+}
+
+.workspace-description {
+  min-height: 90px;
+  resize: vertical;
 }
 
 .env-vars-header {

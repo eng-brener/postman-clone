@@ -1,6 +1,6 @@
 import { useMonaco } from "@monaco-editor/react";
 import { Send, AlertCircle } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { ResponseCookiesTab, type ParsedCookieRow } from "./ResponseTabs/ResponseCookiesTab";
 import { ResponseHeadersTab } from "./ResponseTabs/ResponseHeadersTab";
 import { ResponsePreviewTab } from "./ResponseTabs/ResponsePreviewTab";

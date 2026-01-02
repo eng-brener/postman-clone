@@ -48,6 +48,7 @@ export const UrlBar = ({
   const { t } = useI18n();
   const [isMethodOpen, setIsMethodOpen] = useState(false);
   const methodMenuRef = useRef<HTMLDivElement | null>(null);
+  const isUrlInvalid = !urlIsValid;
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -64,7 +65,7 @@ export const UrlBar = ({
 
   return (
     <>
-      <div className="url-bar-container">
+      <div className="url-bar-container" data-invalid={isUrlInvalid ? "true" : "false"}>
         <div className="method-select-wrap" ref={methodMenuRef}>
           <button
             type="button"
