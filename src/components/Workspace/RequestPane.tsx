@@ -1,6 +1,6 @@
 import Editor from "@monaco-editor/react";
 import { KeyValueEditor } from "../Editors/KeyValueEditor";
-import { AuthData, AuthDataType, AuthType, BodyType, KeyValue, RawType, RequestSettings } from "../../types";
+import { AuthData, AuthDataType, AuthType, BodyType, CookieEntry, KeyValue, RawType, RequestSettings } from "../../types";
 
 interface RequestPaneProps {
   activeTab: string;
@@ -13,6 +13,12 @@ interface RequestPaneProps {
   headers: KeyValue[];
   onHeadersChange: (idx: number, field: keyof KeyValue, val: string | boolean) => void;
   onHeadersRemove: (idx: number) => void;
+
+  cookieContext: { host: string; path: string } | null;
+  cookies: CookieEntry[];
+  onCookieAdd: () => void;
+  onCookieUpdate: (id: string, patch: Partial<CookieEntry>) => void;
+  onCookieRemove: (id: string) => void;
 
   // Auth Props
   authType: AuthType;
@@ -69,6 +75,7 @@ export const RequestPane = (props: RequestPaneProps) => {
       activeTab, onTabChange, 
       params, onParamsChange, onParamsRemove,
       headers, onHeadersChange, onHeadersRemove,
+      cookieContext, cookies, onCookieAdd, onCookieUpdate, onCookieRemove,
       authType, onAuthTypeChange, authData, onAuthDataChange,
       bodyType, onBodyTypeChange,
       rawType, onRawTypeChange,
@@ -78,11 +85,30 @@ export const RequestPane = (props: RequestPaneProps) => {
       settings, onSettingsChange
   } = props;
 
+  const formatDate = (timestamp: number | null) => {
+    if (!timestamp) {
+      return "";
+    }
+    const date = new Date(timestamp);
+    const pad = (val: number) => String(val).padStart(2, "0");
+    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(
+      date.getHours()
+    )}:${pad(date.getMinutes())}`;
+  };
+
+  const parseDate = (value: string) => {
+    if (!value) {
+      return null;
+    }
+    const parsed = new Date(value).getTime();
+    return Number.isNaN(parsed) ? null : parsed;
+  };
+
   return (
     <div className="request-pane">
       <div className="pane-header">
         <div className="tabs">
-          {["Params", "Authorization", "Headers", "Body", "Settings"].map(tab => (
+          {["Params", "Authorization", "Headers", "Cookies", "Body", "Settings"].map(tab => (
             <TabButton
               key={tab}
               label={tab}
@@ -213,6 +239,141 @@ export const RequestPane = (props: RequestPaneProps) => {
 
         {activeTab === "Headers" && (
           <KeyValueEditor items={headers} onChange={onHeadersChange} onRemove={onHeadersRemove} />
+        )}
+
+        {activeTab === "Cookies" && (
+          <div className="cookie-pane">
+            {!cookieContext && (
+              <div className="empty-state" style={{ height: "100%" }}>
+                <span style={{ opacity: 0.6 }}>Enter a valid URL to manage cookies.</span>
+              </div>
+            )}
+            {cookieContext && (
+              <>
+                <div className="cookie-toolbar">
+                  <div className="cookie-scope">
+                    <span className="cookie-scope-label">Domain</span>
+                    <span className="cookie-scope-value">{cookieContext.host}</span>
+                  </div>
+                  <button type="button" className="cookie-add" onClick={onCookieAdd}>
+                    + Add Cookie
+                  </button>
+                </div>
+                {cookies.length === 0 ? (
+                  <div className="empty-state" style={{ paddingTop: 20 }}>
+                    No cookies for this domain yet.
+                  </div>
+                ) : (
+                  <div className="cookie-table">
+                    <div className="cookie-row cookie-header">
+                      <div>On</div>
+                      <div>Name</div>
+                      <div>Value</div>
+                      <div>Domain</div>
+                      <div>Path</div>
+                      <div>Host Only</div>
+                      <div>Expires</div>
+                      <div>Secure</div>
+                      <div>HttpOnly</div>
+                      <div>SameSite</div>
+                      <div></div>
+                    </div>
+                    {cookies.map((cookie) => {
+                      return (
+                        <div key={cookie.id} className="cookie-row">
+                          <div>
+                            <input
+                              type="checkbox"
+                              checked={cookie.enabled}
+                              onChange={(event) => onCookieUpdate(cookie.id, { enabled: event.target.checked })}
+                            />
+                          </div>
+                          <div>
+                            <input
+                              className="cookie-input"
+                              value={cookie.name}
+                              onChange={(event) => onCookieUpdate(cookie.id, { name: event.target.value })}
+                            />
+                          </div>
+                          <div>
+                            <input
+                              className="cookie-input"
+                              value={cookie.value}
+                              onChange={(event) => onCookieUpdate(cookie.id, { value: event.target.value })}
+                            />
+                          </div>
+                          <div>
+                            <input
+                              className="cookie-input"
+                              value={cookie.domain}
+                              onChange={(event) => onCookieUpdate(cookie.id, { domain: event.target.value })}
+                            />
+                          </div>
+                          <div>
+                            <input
+                              className="cookie-input"
+                              value={cookie.path}
+                              onChange={(event) => onCookieUpdate(cookie.id, { path: event.target.value })}
+                            />
+                          </div>
+                          <div>
+                            <input
+                              type="checkbox"
+                              checked={cookie.hostOnly}
+                              onChange={(event) => onCookieUpdate(cookie.id, { hostOnly: event.target.checked })}
+                            />
+                          </div>
+                          <div>
+                            <input
+                              type="datetime-local"
+                              className="cookie-input"
+                              value={formatDate(cookie.expires)}
+                              onChange={(event) => onCookieUpdate(cookie.id, { expires: parseDate(event.target.value) })}
+                            />
+                          </div>
+                          <div>
+                            <input
+                              type="checkbox"
+                              checked={cookie.secure}
+                              onChange={(event) => onCookieUpdate(cookie.id, { secure: event.target.checked })}
+                            />
+                          </div>
+                          <div>
+                            <input
+                              type="checkbox"
+                              checked={cookie.httpOnly}
+                              onChange={(event) => onCookieUpdate(cookie.id, { httpOnly: event.target.checked })}
+                            />
+                          </div>
+                          <div>
+                            <select
+                              className="cookie-select"
+                              value={cookie.sameSite ?? ""}
+                              onChange={(event) =>
+                                onCookieUpdate(cookie.id, {
+                                  sameSite: event.target.value ? (event.target.value as CookieEntry["sameSite"]) : null,
+                                })
+                              }
+                            >
+                              <option value="">-</option>
+                              <option value="Lax">Lax</option>
+                              <option value="Strict">Strict</option>
+                              <option value="None">None</option>
+                            </select>
+                          </div>
+                          <div>
+                            <button type="button" className="cookie-delete" onClick={() => onCookieRemove(cookie.id)}>
+                              Delete
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </>
+            )}
+          </div>
         )}
 
         {activeTab === "Body" && (

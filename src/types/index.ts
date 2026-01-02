@@ -24,6 +24,22 @@ export type AuthData = {
 
 export type AuthDataType = Exclude<AuthType, "none">;
 
+export type CookieSameSite = "Lax" | "Strict" | "None";
+
+export type CookieEntry = {
+  id: string;
+  name: string;
+  value: string;
+  domain: string;
+  path: string;
+  expires: number | null;
+  secure: boolean;
+  httpOnly: boolean;
+  sameSite: CookieSameSite | null;
+  hostOnly: boolean;
+  enabled: boolean;
+};
+
 export type HistoryItem = {
   id: string;
   method: string;
@@ -32,12 +48,26 @@ export type HistoryItem = {
   timeMs: number;
 };
 
+export type RequestData = {
+  method: string;
+  url: string;
+  params: KeyValue[];
+  headers: KeyValue[];
+  authType: AuthType;
+  authData: AuthData;
+  bodyType: BodyType;
+  rawType: RawType;
+  bodyJson: string;
+  bodyFormData: KeyValue[];
+  bodyUrlEncoded: KeyValue[];
+  settings: RequestSettings;
+};
+
 export type CollectionRequest = {
   id: string;
   type: "request";
   name: string;
-  method: string;
-  url: string;
+  request: RequestData;
 };
 
 export type CollectionFolder = {

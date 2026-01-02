@@ -4,12 +4,14 @@ import {
   type DragEvent,
   type KeyboardEvent,
   type MouseEvent,
+  type Dispatch,
+  type SetStateAction,
   useEffect,
   useMemo,
   useRef,
   useState,
 } from "react";
-import { CollectionNode, HistoryItem } from "../../types";
+import { CollectionNode, CollectionRequest, HistoryItem, RequestData } from "../../types";
 
 interface SidebarProps {
   appName: string;
@@ -17,7 +19,11 @@ interface SidebarProps {
   history: HistoryItem[];
   currentUrl: string;
   currentMethod: string;
-  onSelectRequest: (method: string, url: string) => void;
+  collectionNodes: CollectionNode[];
+  setCollectionNodes: Dispatch<SetStateAction<CollectionNode[]>>;
+  buildRequestData: (method: string, url: string) => RequestData;
+  onSelectRequest: (request: CollectionRequest) => void;
+  onSelectHistory: (method: string, url: string) => void;
 }
 
 const MethodBadge = ({ method }: { method: string }) => {
@@ -32,6 +38,10 @@ const SidebarItem = ({
   onContextMenu,
   onDragStart,
   onDragEnd,
+  onDragOver,
+  onDragLeave,
+  onDrop,
+  className,
   onClick,
 }: {
   active?: boolean;
@@ -41,14 +51,21 @@ const SidebarItem = ({
   onContextMenu?: (event: MouseEvent) => void;
   onDragStart?: (event: DragEvent) => void;
   onDragEnd?: () => void;
+  onDragOver?: (event: DragEvent) => void;
+  onDragLeave?: (event: DragEvent) => void;
+  onDrop?: (event: DragEvent) => void;
+  className?: string;
   onClick: () => void;
 }) => (
   <button
-    className={`nav-item ${active ? "active" : ""}`}
+    className={`nav-item ${active ? "active" : ""} ${className ?? ""}`}
     style={{ paddingLeft: 12 + depth * 14 }}
     onContextMenu={onContextMenu}
     onDragStart={onDragStart}
     onDragEnd={onDragEnd}
+    onDragOver={onDragOver}
+    onDragLeave={onDragLeave}
+    onDrop={onDrop}
     draggable={!!onDragStart}
     onClick={onClick}
   >
@@ -59,73 +76,18 @@ const SidebarItem = ({
   </button>
 );
 
-const initialCollectionTree: CollectionNode[] = [
-  {
-    id: "folder-starter",
-    type: "folder",
-    name: "Starter",
-    children: [
-      {
-        id: "req-catfact",
-        type: "request",
-        name: "Get Cat Fact",
-        method: "GET",
-        url: "https://catfact.ninja/fact",
-      },
-      {
-        id: "req-create-user",
-        type: "request",
-        name: "Create User",
-        method: "POST",
-        url: "https://reqres.in/api/users",
-      },
-    ],
-  },
-  {
-    id: "folder-users",
-    type: "folder",
-    name: "Users",
-    children: [
-      {
-        id: "req-users-list",
-        type: "request",
-        name: "List Users",
-        method: "GET",
-        url: "https://reqres.in/api/users?page=1",
-      },
-      {
-        id: "folder-users-profile",
-        type: "folder",
-        name: "Profiles",
-        children: [
-          {
-            id: "req-user-update",
-            type: "request",
-            name: "Update User",
-            method: "PUT",
-            url: "https://reqres.in/api/users/2",
-          },
-          {
-            id: "req-user-patch",
-            type: "request",
-            name: "Patch User",
-            method: "PATCH",
-            url: "https://reqres.in/api/users/2",
-          },
-          {
-            id: "req-user-delete",
-            type: "request",
-            name: "Delete User",
-            method: "DELETE",
-            url: "https://reqres.in/api/users/2",
-          },
-        ],
-      },
-    ],
-  },
-];
-
-export const Sidebar = ({ appName, appVersion, history, currentUrl, currentMethod, onSelectRequest }: SidebarProps) => {
+export const Sidebar = ({
+  appName,
+  appVersion,
+  history,
+  currentUrl,
+  currentMethod,
+  collectionNodes,
+  setCollectionNodes,
+  buildRequestData,
+  onSelectRequest,
+  onSelectHistory,
+}: SidebarProps) => {
   const defaultOpen = useMemo(() => {
     const openMap: Record<string, boolean> = {};
     const walk = (nodes: CollectionNode[]) => {
@@ -136,11 +98,27 @@ export const Sidebar = ({ appName, appVersion, history, currentUrl, currentMetho
         }
       });
     };
-    walk(initialCollectionTree);
+    walk(collectionNodes);
     return openMap;
-  }, []);
+  }, [collectionNodes]);
   const [openFolders, setOpenFolders] = useState<Record<string, boolean>>(defaultOpen);
-  const [collectionNodes, setCollectionNodes] = useState<CollectionNode[]>(initialCollectionTree);
+  useEffect(() => {
+    setOpenFolders((prev) => {
+      const next = { ...prev };
+      const walk = (nodes: CollectionNode[]) => {
+        nodes.forEach((node) => {
+          if (node.type === "folder") {
+            if (!(node.id in next)) {
+              next[node.id] = true;
+            }
+            walk(node.children);
+          }
+        });
+      };
+      walk(collectionNodes);
+      return next;
+    });
+  }, [collectionNodes]);
 
   const toggleFolder = (id: string) => {
     setOpenFolders((prev) => ({ ...prev, [id]: !prev[id] }));
@@ -170,8 +148,18 @@ export const Sidebar = ({ appName, appVersion, history, currentUrl, currentMetho
     targetType: "folder" | "request";
     targetName: string;
   } | null>(null);
+  const [moveModal, setMoveModal] = useState<{
+    targetId: string;
+    targetType: "folder" | "request";
+    targetName: string;
+    destinationId: string | null;
+  } | null>(null);
   const [collectionFilter, setCollectionFilter] = useState("");
   const [dragState, setDragState] = useState<{
+    dragId: string;
+    dragType: "folder" | "request";
+  } | null>(null);
+  const dragStateRef = useRef<{
     dragId: string;
     dragType: "folder" | "request";
   } | null>(null);
@@ -332,6 +320,99 @@ export const Sidebar = ({ appName, appVersion, history, currentUrl, currentMetho
     return null;
   };
 
+  const findParentInfo = (
+    nodes: CollectionNode[],
+    targetId: string,
+    parentId: string | null = null
+  ): { parentId: string | null; index: number } | null => {
+    for (let i = 0; i < nodes.length; i += 1) {
+      const node = nodes[i];
+      if (node.id === targetId) {
+        return { parentId, index: i };
+      }
+      if (node.type === "folder") {
+        const child = findParentInfo(node.children, targetId, node.id);
+        if (child) {
+          return child;
+        }
+      }
+    }
+    return null;
+  };
+
+  const listFolderOptions = (nodes: CollectionNode[], acc: { id: string | null; label: string }[] = [], prefix = "") => {
+    nodes.forEach((node) => {
+      if (node.type === "folder") {
+        acc.push({ id: node.id, label: `${prefix}${node.name}` });
+        listFolderOptions(node.children, acc, `${prefix}${node.name} / `);
+      }
+    });
+    return acc;
+  };
+
+  const cloneNodeWithIds = (node: CollectionNode): CollectionNode => {
+    if (node.type === "folder") {
+      return {
+        id: `folder-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+        type: "folder",
+        name: `${node.name} Copy`,
+        children: node.children.map((child) => cloneNodeWithIds(child)),
+      };
+    }
+    return {
+      id: `req-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+      type: "request",
+      name: `${node.name} Copy`,
+      request: {
+        ...node.request,
+        params: node.request.params.map((item) => ({ ...item })),
+        headers: node.request.headers.map((item) => ({ ...item })),
+        authData: {
+          apiKey: { ...node.request.authData.apiKey },
+          bearer: { ...node.request.authData.bearer },
+          basic: { ...node.request.authData.basic },
+        },
+        bodyFormData: node.request.bodyFormData.map((item) => ({ ...item })),
+        bodyUrlEncoded: node.request.bodyUrlEncoded.map((item) => ({ ...item })),
+        settings: { ...node.request.settings },
+      },
+    };
+  };
+
+  const sortChildrenByName = (nodes: CollectionNode[]): CollectionNode[] => {
+    return [...nodes].sort((a, b) => {
+      if (a.type !== b.type) {
+        return a.type === "folder" ? -1 : 1;
+      }
+      return a.name.localeCompare(b.name);
+    });
+  };
+
+  const insertNodeAt = (
+    nodes: CollectionNode[],
+    parentId: string | null,
+    index: number,
+    node: CollectionNode
+  ): CollectionNode[] => {
+    if (!parentId) {
+      const next = [...nodes];
+      next.splice(index, 0, node);
+      return next;
+    }
+
+    return nodes.map((entry) => {
+      if (entry.type === "folder") {
+        if (entry.id === parentId) {
+          const nextChildren = [...entry.children];
+          nextChildren.splice(index, 0, node);
+          return { ...entry, children: nextChildren };
+        }
+        return { ...entry, children: insertNodeAt(entry.children, parentId, index, node) };
+      }
+      return entry;
+    });
+  };
+
   const moveNode = (dragId: string, targetFolderId: string | null) => {
     if (targetFolderId && dragId === targetFolderId) {
       return;
@@ -363,29 +444,37 @@ export const Sidebar = ({ appName, appVersion, history, currentUrl, currentMetho
     event.stopPropagation();
     event.dataTransfer.effectAllowed = "move";
     event.dataTransfer.setData("text/plain", node.id);
-    setDragState({ dragId: node.id, dragType: node.type });
+    event.dataTransfer.setData("text", node.id);
+    event.dataTransfer.dropEffect = "move";
+    const nextDrag = { dragId: node.id, dragType: node.type };
+    dragStateRef.current = nextDrag;
+    setDragState(nextDrag);
     setDropInvalidId(null);
   };
 
   const handleDragEnd = () => {
     setDragState(null);
+    dragStateRef.current = null;
     setDropTargetId(null);
     setDropInvalidId(null);
   };
 
   const handleDragOverFolder = (event: DragEvent, folderId: string) => {
-    if (!dragState) {
+    const activeDrag = dragStateRef.current ?? dragState;
+    if (!activeDrag) {
+      event.preventDefault();
+      event.dataTransfer.dropEffect = "move";
       return;
     }
-    if (dragState.dragId === folderId) {
+    if (activeDrag.dragId === folderId) {
       event.preventDefault();
       event.dataTransfer.dropEffect = "none";
       setDropTargetId(null);
       setDropInvalidId(folderId);
       return;
     }
-    if (dragState.dragType === "folder") {
-      const dragged = findNodeById(collectionNodes, dragState.dragId);
+    if (activeDrag.dragType === "folder") {
+      const dragged = findNodeById(collectionNodes, activeDrag.dragId);
       if (dragged && isDescendant(dragged, folderId)) {
         event.preventDefault();
         event.dataTransfer.dropEffect = "none";
@@ -401,8 +490,42 @@ export const Sidebar = ({ appName, appVersion, history, currentUrl, currentMetho
     setDropInvalidId(null);
   };
 
+  const handleDragOverRequest = (event: DragEvent, requestId: string) => {
+    const activeDrag = dragStateRef.current ?? dragState;
+    if (!activeDrag) {
+      event.preventDefault();
+      event.dataTransfer.dropEffect = "move";
+      return;
+    }
+    if (activeDrag.dragId === requestId) {
+      event.preventDefault();
+      event.dataTransfer.dropEffect = "none";
+      setDropTargetId(null);
+      setDropInvalidId(requestId);
+      return;
+    }
+    if (activeDrag.dragType === "folder") {
+      const dragged = findNodeById(collectionNodes, activeDrag.dragId);
+      if (dragged && isDescendant(dragged, requestId)) {
+        event.preventDefault();
+        event.dataTransfer.dropEffect = "none";
+        setDropTargetId(null);
+        setDropInvalidId(requestId);
+        return;
+      }
+    }
+    event.stopPropagation();
+    event.preventDefault();
+    event.dataTransfer.dropEffect = "move";
+    setDropTargetId(requestId);
+    setDropInvalidId(null);
+  };
+
   const handleDragOverRoot = (event: DragEvent) => {
-    if (!dragState) {
+    const activeDrag = dragStateRef.current ?? dragState;
+    if (!activeDrag) {
+      event.preventDefault();
+      event.dataTransfer.dropEffect = "move";
       return;
     }
     event.preventDefault();
@@ -424,32 +547,72 @@ export const Sidebar = ({ appName, appVersion, history, currentUrl, currentMetho
   const handleDropOnFolder = (event: DragEvent, folderId: string) => {
     event.stopPropagation();
     event.preventDefault();
-    if (!dragState) {
+    const activeDrag = dragStateRef.current ?? dragState;
+    if (!activeDrag) {
       return;
     }
-    if (dragState.dragId === folderId) {
+    if (activeDrag.dragId === folderId) {
       return;
     }
-    if (dragState.dragType === "folder") {
-      const dragged = findNodeById(collectionNodes, dragState.dragId);
+    if (activeDrag.dragType === "folder") {
+      const dragged = findNodeById(collectionNodes, activeDrag.dragId);
       if (dragged && isDescendant(dragged, folderId)) {
         return;
       }
     }
-    moveNode(dragState.dragId, folderId);
+    moveNode(activeDrag.dragId, folderId);
     setDropTargetId(null);
     setDragState(null);
+    dragStateRef.current = null;
+    setDropInvalidId(null);
+  };
+
+  const handleDropOnRequest = (event: DragEvent, requestId: string) => {
+    event.stopPropagation();
+    event.preventDefault();
+    const activeDrag = dragStateRef.current ?? dragState;
+    if (!activeDrag) {
+      return;
+    }
+    if (activeDrag.dragId === requestId) {
+      return;
+    }
+    if (activeDrag.dragType === "folder") {
+      const dragged = findNodeById(collectionNodes, activeDrag.dragId);
+      if (dragged && isDescendant(dragged, requestId)) {
+        return;
+      }
+    }
+    const targetInfo = findParentInfo(collectionNodes, requestId);
+    if (!targetInfo) {
+      return;
+    }
+    setCollectionNodes((prev) => {
+      const extracted = extractNode(prev, activeDrag.dragId);
+      if (!extracted.extracted) {
+        return prev;
+      }
+      return insertNodeAt(extracted.nodes, targetInfo.parentId, targetInfo.index, extracted.extracted);
+    });
+    if (targetInfo.parentId) {
+      setOpenFolders((prev) => ({ ...prev, [targetInfo.parentId as string]: true }));
+    }
+    setDropTargetId(null);
+    setDragState(null);
+    dragStateRef.current = null;
     setDropInvalidId(null);
   };
 
   const handleDropOnRoot = (event: DragEvent) => {
     event.preventDefault();
-    if (!dragState) {
+    const activeDrag = dragStateRef.current ?? dragState;
+    if (!activeDrag) {
       return;
     }
-    moveNode(dragState.dragId, null);
+    moveNode(activeDrag.dragId, null);
     setDropTargetId(null);
     setDragState(null);
+    dragStateRef.current = null;
     setDropInvalidId(null);
   };
 
@@ -487,6 +650,84 @@ export const Sidebar = ({ appName, appVersion, history, currentUrl, currentMetho
     }
 
     setContextMenu(null);
+  };
+
+  const getMoveOptions = () => {
+    const all = [{ id: null, label: "Root" }, ...listFolderOptions(collectionNodes)];
+    if (!moveModal) {
+      return all;
+    }
+    if (moveModal.targetType !== "folder") {
+      return all;
+    }
+    const dragged = findNodeById(collectionNodes, moveModal.targetId);
+    return all.filter((option) => {
+      if (option.id === moveModal.targetId) {
+        return false;
+      }
+      if (!option.id || !dragged || dragged.type !== "folder") {
+        return true;
+      }
+      return !isDescendant(dragged, option.id);
+    });
+  };
+
+  const handleContextCommand = (action: "duplicate" | "move" | "sort") => {
+    if (!contextMenu) {
+      return;
+    }
+    if (contextMenu.targetType === "root" && action !== "sort") {
+      setContextMenu(null);
+      return;
+    }
+
+    if (action === "duplicate") {
+      const targetInfo = findParentInfo(collectionNodes, contextMenu.targetId);
+      setCollectionNodes((prev) => {
+        const extracted = extractNode(prev, contextMenu.targetId);
+        if (!extracted.extracted) {
+          return prev;
+        }
+        const clone = cloneNodeWithIds(extracted.extracted);
+        if (!targetInfo) {
+          return [...prev, clone];
+        }
+        return insertNodeAt(prev, targetInfo.parentId, targetInfo.index + 1, clone);
+      });
+      setContextMenu(null);
+      return;
+    }
+
+    if (action === "move") {
+      setMoveModal({
+        targetId: contextMenu.targetId,
+        targetType: contextMenu.targetType as "folder" | "request",
+        targetName: contextMenu.targetName,
+        destinationId: null,
+      });
+      setContextMenu(null);
+      return;
+    }
+
+    if (action === "sort") {
+      if (contextMenu.targetType === "root") {
+        setCollectionNodes((prev) => sortChildrenByName(prev));
+      } else {
+        const targetId = contextMenu.targetId;
+        const sortById = (nodes: CollectionNode[]): CollectionNode[] =>
+          nodes.map((node) => {
+            if (node.type === "folder") {
+              if (node.id === targetId) {
+                return { ...node, children: sortChildrenByName(node.children) };
+              }
+              return { ...node, children: sortById(node.children) };
+            }
+            return node;
+          });
+        setCollectionNodes((prev) => sortById(prev));
+      }
+      setContextMenu(null);
+    }
   };
 
   const startCreate = (type: "folder" | "request") => {
@@ -538,8 +779,7 @@ export const Sidebar = ({ appName, appVersion, history, currentUrl, currentMetho
             id,
             type: "request",
             name,
-            method: createModal.method,
-            url: createModal.url.trim() || "https://example.com",
+            request: buildRequestData(createModal.method, createModal.url.trim() || "https://example.com"),
           };
 
     setCollectionNodes((prev) => addNode(prev, createModal.parentId, newNode));
@@ -579,6 +819,32 @@ export const Sidebar = ({ appName, appVersion, history, currentUrl, currentMetho
     setDeleteModal(null);
   };
 
+  const handleMoveConfirm = () => {
+    if (!moveModal) {
+      return;
+    }
+    const destinationId = moveModal.destinationId;
+    if (destinationId === moveModal.targetId) {
+      setMoveModal(null);
+      return;
+    }
+    setCollectionNodes((prev) => {
+      const extracted = extractNode(prev, moveModal.targetId);
+      if (!extracted.extracted) {
+        return prev;
+      }
+      return addNode(extracted.nodes, destinationId, extracted.extracted);
+    });
+    if (destinationId) {
+      setOpenFolders((prev) => ({ ...prev, [destinationId]: true }));
+    }
+    setMoveModal(null);
+  };
+
+  const handleMoveCancel = () => {
+    setMoveModal(null);
+  };
+
   const handleRenameSubmit = (event: FormEvent) => {
     event.preventDefault();
     if (!renameModal) {
@@ -614,8 +880,8 @@ export const Sidebar = ({ appName, appVersion, history, currentUrl, currentMetho
       }
       return (
         node.name.toLowerCase().includes(trimmed) ||
-        node.url.toLowerCase().includes(trimmed) ||
-        node.method.toLowerCase().includes(trimmed)
+        node.request.url.toLowerCase().includes(trimmed) ||
+        node.request.method.toLowerCase().includes(trimmed)
       );
     };
     const walk = (list: CollectionNode[]): CollectionNode[] =>
@@ -669,14 +935,18 @@ export const Sidebar = ({ appName, appVersion, history, currentUrl, currentMetho
       return (
         <SidebarItem
           key={node.id}
-          method={node.method}
+          method={node.request.method}
           label={node.name}
           depth={depth}
-          active={currentUrl === node.url && currentMethod === node.method}
-          onClick={() => onSelectRequest(node.method, node.url)}
+          active={currentUrl === node.request.url && currentMethod === node.request.method}
+          onClick={() => onSelectRequest(node)}
           onContextMenu={(event) => openContextMenu(event, node)}
           onDragStart={(event) => handleDragStart(event, node)}
           onDragEnd={handleDragEnd}
+          onDragOver={(event) => handleDragOverRequest(event, node.id)}
+          onDragLeave={(event) => handleDragLeaveFolder(event, node.id)}
+          onDrop={(event) => handleDropOnRequest(event, node.id)}
+          className={`${dropTargetId === node.id ? "drop-target" : ""} ${dropInvalidId === node.id ? "drop-invalid" : ""}`}
         />
       );
     });
@@ -761,7 +1031,7 @@ export const Sidebar = ({ appName, appVersion, history, currentUrl, currentMetho
                 key={h.id}
                 method={h.method}
                 label={h.url}
-                onClick={() => onSelectRequest(h.method, h.url)}
+                onClick={() => onSelectHistory(h.method, h.url)}
               />
             ))}
           </>
@@ -790,23 +1060,67 @@ export const Sidebar = ({ appName, appVersion, history, currentUrl, currentMetho
                 ? "Folder"
                 : "Request"}
           </div>
-          {contextMenu.targetType !== "request" && (
+          {contextMenu.targetType === "folder" && (
             <>
               <button className="context-menu-item" onClick={() => startCreate("request")}>
-                New Request
+                Add Request
               </button>
               <button className="context-menu-item" onClick={() => startCreate("folder")}>
-                New Folder
+                Add Folder
+              </button>
+              <button className="context-menu-item disabled" disabled>
+                Run
+              </button>
+              <button className="context-menu-item disabled" disabled>
+                Share
+              </button>
+              <button className="context-menu-item" onClick={() => handleContextCommand("move")}>
+                Move
+              </button>
+              <button className="context-menu-item" onClick={() => handleContextAction("rename")}>
+                Rename
+              </button>
+              <button className="context-menu-item" onClick={() => handleContextCommand("duplicate")}>
+                Duplicate
+              </button>
+              <button className="context-menu-item" onClick={() => handleContextCommand("sort")}>
+                Sort
+              </button>
+              <button className="context-menu-item danger" onClick={() => handleContextAction("delete")}>
+                Delete
               </button>
             </>
           )}
-          {contextMenu.targetType !== "root" && (
+          {contextMenu.targetType === "root" && (
+            <>
+              <button className="context-menu-item" onClick={() => startCreate("request")}>
+                Add Request
+              </button>
+              <button className="context-menu-item" onClick={() => startCreate("folder")}>
+                Add Folder
+              </button>
+              <button className="context-menu-item" onClick={() => handleContextCommand("sort")}>
+                Sort
+              </button>
+            </>
+          )}
+          {contextMenu.targetType === "request" && (
             <>
               <button className="context-menu-item" onClick={() => handleContextAction("rename")}>
                 Rename
               </button>
+              <button className="context-menu-item" onClick={() => handleContextCommand("duplicate")}>
+                Duplicate
+              </button>
               <button className="context-menu-item danger" onClick={() => handleContextAction("delete")}>
                 Delete
+              </button>
+            </>
+          )}
+          {contextMenu.targetType === "root" && (
+            <>
+              <button className="context-menu-item" onClick={() => handleContextCommand("sort")}>
+                Sort
               </button>
             </>
           )}
@@ -916,6 +1230,42 @@ export const Sidebar = ({ appName, appVersion, history, currentUrl, currentMetho
                 </button>
                 <button type="button" className="modal-button danger" onClick={handleDeleteConfirm}>
                   Delete
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+      {moveModal && (
+        <div className="modal-overlay" onClick={handleMoveCancel}>
+          <div className="modal" onClick={(event) => event.stopPropagation()}>
+            <div className="modal-header">Move {moveModal.targetType === "folder" ? "Folder" : "Request"}</div>
+            <div className="modal-body">
+              <label className="modal-label" htmlFor="move-destination-input">
+                Destination
+              </label>
+              <select
+                id="move-destination-input"
+                className="modal-input"
+                value={moveModal.destinationId ?? ""}
+                onChange={(event) =>
+                  setMoveModal((prev) =>
+                    prev ? { ...prev, destinationId: event.target.value || null } : prev
+                  )
+                }
+              >
+                {getMoveOptions().map((option) => (
+                  <option key={option.id ?? "root"} value={option.id ?? ""}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+              <div className="modal-actions">
+                <button type="button" className="modal-button ghost" onClick={handleMoveCancel}>
+                  Cancel
+                </button>
+                <button type="button" className="modal-button primary" onClick={handleMoveConfirm}>
+                  Move
                 </button>
               </div>
             </div>

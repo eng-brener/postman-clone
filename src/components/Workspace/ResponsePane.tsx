@@ -1,5 +1,64 @@
 import Editor from "@monaco-editor/react";
 import { Clock, FileJson, Send, AlertCircle } from "lucide-react";
+import { useState } from "react";
+
+type ParsedCookieRow = {
+  name: string;
+  value: string;
+  domain: string;
+  path: string;
+  expires: string;
+  httpOnly: boolean;
+  secure: boolean;
+};
+
+const splitSetCookieHeader = (value: string) =>
+  value
+    .split(/,(?=[^;]+=)/)
+    .map((part) => part.trim())
+    .filter(Boolean);
+
+const parseSetCookieLine = (cookieLine: string): ParsedCookieRow | null => {
+  const parts = cookieLine.split(";").map((part) => part.trim()).filter(Boolean);
+  if (parts.length === 0) {
+    return null;
+  }
+  const [nameValue, ...attrs] = parts;
+  const eqIndex = nameValue.indexOf("=");
+  if (eqIndex <= 0) {
+    return null;
+  }
+  const name = nameValue.slice(0, eqIndex).trim();
+  const value = nameValue.slice(eqIndex + 1);
+  if (!name) {
+    return null;
+  }
+
+  let domain = "-";
+  let path = "-";
+  let expires = "-";
+  let httpOnly = false;
+  let secure = false;
+
+  for (const attr of attrs) {
+    const [rawKey, rawVal] = attr.split("=");
+    const key = rawKey.trim().toLowerCase();
+    const val = rawVal?.trim();
+    if (key === "domain" && val) {
+      domain = val;
+    } else if (key === "path" && val) {
+      path = val;
+    } else if (key === "expires" && val) {
+      expires = val;
+    } else if (key === "httponly") {
+      httpOnly = true;
+    } else if (key === "secure") {
+      secure = true;
+    }
+  }
+
+  return { name, value, domain, path, expires, httpOnly, secure };
+};
 
 interface ResponsePaneProps {
   activeTab: string;
@@ -27,19 +86,69 @@ export const ResponsePane = (props: ResponsePaneProps) => {
     responseCode, responseStatus, responseTime, responseSize, 
     responseRaw, responsePretty, responseHeaders, errorMessage 
   } = props;
+  const [expandedCookieValues, setExpandedCookieValues] = useState<Set<string>>(new Set());
+  const [expandedCookieNames, setExpandedCookieNames] = useState<Set<string>>(new Set());
+  const responseCookies = responseHeaders.filter(([key]) => key.toLowerCase() === "set-cookie");
+  const parsedCookies = responseCookies
+    .flatMap(([, value]) => splitSetCookieHeader(value))
+    .map((line) => parseSetCookieLine(line))
+    .filter((cookie): cookie is ParsedCookieRow => Boolean(cookie));
+
+  const toggleCookieValue = (key: string) => {
+    setExpandedCookieValues((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) {
+        next.delete(key);
+      } else {
+        next.add(key);
+      }
+      return next;
+    });
+  };
+
+  const toggleCookieName = (key: string) => {
+    setExpandedCookieNames((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) {
+        next.delete(key);
+      } else {
+        next.add(key);
+      }
+      return next;
+    });
+  };
+
+  const truncateValue = (value: string, max = 28) => {
+    if (value.length <= max) {
+      return value;
+    }
+    return `${value.slice(0, max)}...`;
+  };
 
   return (
     <div className="response-pane">
       <div className="pane-header">
         <div className="tabs">
-          {["Preview", "Header", "Raw"].map(tab => (
-            <TabButton
-              key={tab}
-              label={tab}
-              active={activeTab === tab}
-              onClick={() => onTabChange(tab)}
-            />
-          ))}
+          {(["Preview", "Header", "Cookies", "Raw"] as const).map(tab => {
+            const label =
+              tab === "Cookies"
+                ? parsedCookies.length > 0
+                  ? `Cookies (${parsedCookies.length})`
+                  : "Cookies"
+                : tab === "Header"
+                  ? responseHeaders.length > 0
+                    ? `Header (${responseHeaders.length})`
+                    : "Header"
+                  : tab;
+            return (
+              <TabButton
+                key={tab}
+                label={label}
+                active={activeTab === tab}
+                onClick={() => onTabChange(tab)}
+              />
+            );
+          })}
         </div>
         {responseCode && (
           <div className="status-bar">
@@ -103,6 +212,65 @@ export const ResponsePane = (props: ResponsePaneProps) => {
                     <span style={{ wordBreak: "break-all" }}>{value}</span>
                   </div>
                 ))}
+              </div>
+            )}
+            {activeTab === "Cookies" && (
+              <div style={{ padding: 16 }}>
+                {parsedCookies.length === 0 ? (
+                  <div className="empty-state" style={{ padding: 12 }}>
+                    No cookies returned.
+                  </div>
+                ) : (
+                  <div className="cookie-table">
+                    <div className="cookie-row-response cookie-header">
+                      <div>Name</div>
+                      <div>Value</div>
+                      <div>Domain</div>
+                      <div>Path</div>
+                      <div>Expires</div>
+                      <div>HttpOnly</div>
+                      <div>Secure</div>
+                    </div>
+                    {parsedCookies.map((cookie, i) => {
+                      const rowKey = `${cookie.name}-${i}`;
+                      const isValueExpanded = expandedCookieValues.has(rowKey);
+                      const isNameExpanded = expandedCookieNames.has(rowKey);
+                      return (
+                        <div key={rowKey} className="cookie-row-response">
+                        <div>
+                          <button
+                            type="button"
+                            className="cookie-value-button"
+                            onClick={() => toggleCookieName(rowKey)}
+                            title={isNameExpanded ? "Collapse name" : "Expand name"}
+                          >
+                            <span className={`cookie-value-text ${isNameExpanded ? "expanded" : ""}`}>
+                              {isNameExpanded ? cookie.name : truncateValue(cookie.name)}
+                            </span>
+                          </button>
+                        </div>
+                        <div>
+                          <button
+                            type="button"
+                            className="cookie-value-button"
+                            onClick={() => toggleCookieValue(rowKey)}
+                            title={isValueExpanded ? "Collapse value" : "Expand value"}
+                          >
+                            <span className={`cookie-value-text ${isValueExpanded ? "expanded" : ""}`}>
+                              {isValueExpanded ? cookie.value : truncateValue(cookie.value)}
+                            </span>
+                          </button>
+                        </div>
+                        <div>{cookie.domain}</div>
+                        <div>{cookie.path}</div>
+                        <div>{cookie.expires}</div>
+                        <div>{cookie.httpOnly ? "Yes" : "No"}</div>
+                        <div>{cookie.secure ? "Yes" : "No"}</div>
+                      </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             )}
             {activeTab === "Raw" && (
