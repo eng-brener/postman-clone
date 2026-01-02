@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { getName, getVersion } from "@tauri-apps/api/app";
-import { fetch as tauriFetch } from "@tauri-apps/plugin-http";
+import { invoke } from "@tauri-apps/api/core";
 import "./styles/theme.css";
 import "./App.css";
 
@@ -1317,6 +1317,13 @@ function App() {
     }
   };
 
+  type SendHttpResponse = {
+    status: number;
+    status_text: string;
+    headers: [string, string][];
+    body: string;
+  };
+
   const sendRequest = async () => {
     setIsSending(true);
     setErrorMessage(null);
@@ -1325,71 +1332,66 @@ function App() {
 
     try {
       const bodyAllowed = !["GET", "HEAD"].includes(method);
-      let payload: BodyInit | undefined = undefined;
+      let requestBodyType = bodyAllowed ? bodyType : "none";
+      let requestBody: string | undefined = undefined;
+      let requestFormData: KeyValue[] = [];
 
       if (bodyAllowed && bodyType !== "none") {
         if (bodyType === "raw") {
-          payload = resolveTemplate(bodyJson, environmentValues);
+          requestBody = resolveTemplate(bodyJson, environmentValues);
         } else if (bodyType === "form-data") {
-           const formData = new FormData();
-           bodyFormData.forEach(item => {
-             if (item.enabled && item.key.trim()) {
-               const key = resolveTemplate(item.key.trim(), environmentValues);
-               const value = resolveTemplate(item.value, environmentValues);
-               if (key) {
-                 formData.append(key, value);
-               }
-             }
-           });
-           payload = formData;
+          requestFormData = bodyFormData.map((item) => ({
+            key: resolveTemplate(item.key.trim(), environmentValues),
+            value: resolveTemplate(item.value, environmentValues),
+            enabled: item.enabled,
+          }));
         } else if (bodyType === "x-www-form-urlencoded") {
-           const urlEncoded = new URLSearchParams();
-           bodyUrlEncoded.forEach(item => {
-             if (item.enabled && item.key.trim()) {
-               const key = resolveTemplate(item.key.trim(), environmentValues);
-               const value = resolveTemplate(item.value, environmentValues);
-               if (key) {
-                 urlEncoded.append(key, value);
-               }
-             }
-           });
-           payload = urlEncoded.toString();
+          const urlEncoded = new URLSearchParams();
+          bodyUrlEncoded.forEach((item) => {
+            if (item.enabled && item.key.trim()) {
+              const key = resolveTemplate(item.key.trim(), environmentValues);
+              const value = resolveTemplate(item.value, environmentValues);
+              if (key) {
+                urlEncoded.append(key, value);
+              }
+            }
+          });
+          requestBody = urlEncoded.toString();
         }
       }
-      
-      const response = await tauriFetch(requestUrl, {
-        method,
-        headers: activeHeaders,
-        body: payload,
-        redirect: settings.followRedirects ? "follow" : "manual",
-        maxRedirections: settings.followRedirects ? undefined : 0,
-        danger: settings.verifySsl ? undefined : { acceptInvalidCerts: true, acceptInvalidHostnames: true },
+
+      const response = await invoke<SendHttpResponse>("send_http", {
+        request: {
+          method,
+          url: requestUrl,
+          headers: Object.entries(activeHeaders),
+          body_type: requestBodyType,
+          body: requestBody,
+          form_data: requestFormData,
+          settings: {
+            follow_redirects: settings.followRedirects,
+            verify_ssl: settings.verifySsl,
+          },
+        },
       });
 
-      const rawText = await response.text();
+      const rawText = response.body;
       const responseBytes = new Blob([rawText]).size;
       const timeMs = Math.round(performance.now() - start);
       
       setResponseTime(timeMs);
       setResponseCode(response.status);
-      setResponseStatus(`${response.status} ${response.statusText || ""}`.trim());
+      setResponseStatus(`${response.status} ${response.status_text || ""}`.trim());
       setResponseSize(responseBytes);
       setResponseRaw(rawText);
 
       // Extract Headers
-      const headersList: [string, string][] = [];
-      response.headers.forEach((value, key) => {
-        headersList.push([key, value]);
-      });
+      const headersList: [string, string][] = response.headers || [];
       setResponseHeaders(headersList);
 
       const setCookieValues = headersList
         .filter(([key]) => key.toLowerCase() === "set-cookie")
         .map(([, value]) => value);
-      const directSetCookie = response.headers.get("set-cookie");
-      if (directSetCookie && !setCookieValues.includes(directSetCookie)) {
-        setCookieValues.push(directSetCookie);
-      }
       if (setCookieValues.length > 0) {
         const requestInfo = (() => {
           try {
@@ -1409,7 +1411,7 @@ function App() {
         }
       }
 
-      const contentType = response.headers.get("content-type");
+      const contentType = headersList.find(([key]) => key.toLowerCase() === "content-type")?.[1] ?? null;
       const responseLang = getResponseLanguage(contentType, rawText);
       let formatted = rawText;
       if (responseLang === "json") {
@@ -1426,7 +1428,7 @@ function App() {
       updateActiveTab((tab) => ({
         ...tab,
         responseCode: response.status,
-        responseStatus: `${response.status} ${response.statusText || ""}`.trim(),
+        responseStatus: `${response.status} ${response.status_text || ""}`.trim(),
         responseTime: timeMs,
         responseSize: responseBytes,
         responseRaw: rawText,
