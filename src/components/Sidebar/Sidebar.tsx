@@ -1,9 +1,8 @@
-import { Layers, Settings } from "lucide-react";
+import { Layers } from "lucide-react";
 import {
   type Dispatch,
   type SetStateAction,
-  useState,
-  useMemo
+  useState
 } from "react";
 import {
   CollectionNode,
