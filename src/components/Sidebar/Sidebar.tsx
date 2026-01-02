@@ -178,6 +178,8 @@ export const Sidebar = ({ appName, appVersion, history, currentUrl, currentMetho
   const [dropTargetId, setDropTargetId] = useState<string | null>(null);
   const [dropInvalidId, setDropInvalidId] = useState<string | null>(null);
   const [historyOpen, setHistoryOpen] = useState(true);
+  const [settingsModalOpen, setSettingsModalOpen] = useState(false);
+  const [settingsTab, setSettingsTab] = useState<"general" | "about">("general");
   const renameInputRef = useRef<HTMLInputElement | null>(null);
   const renameFocusRef = useRef(false);
 
@@ -767,10 +769,10 @@ export const Sidebar = ({ appName, appVersion, history, currentUrl, currentMetho
       </div>
 
       <div className="sidebar-header" style={{ borderTop: '1px solid var(--border-subtle)', marginTop: 'auto' }}>
-        <div className="nav-item">
+        <button className="nav-item" onClick={() => setSettingsModalOpen(true)}>
           <Settings size={16} />
           <span>Settings</span>
-        </div>
+        </button>
         <div style={{ padding: '0 12px', fontSize: '0.7rem', color: 'var(--text-dim)', marginTop: 4 }}>
           v{appVersion}
         </div>
@@ -916,6 +918,50 @@ export const Sidebar = ({ appName, appVersion, history, currentUrl, currentMetho
                   Delete
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+      {settingsModalOpen && (
+        <div className="modal-overlay" onClick={() => setSettingsModalOpen(false)}>
+          <div className="modal settings-modal" onClick={(event) => event.stopPropagation()}>
+            <div className="modal-header">Settings</div>
+            <div className="settings-tabs">
+              <button
+                type="button"
+                className={`settings-tab ${settingsTab === "general" ? "active" : ""}`}
+                onClick={() => setSettingsTab("general")}
+              >
+                General
+              </button>
+              <button
+                type="button"
+                className={`settings-tab ${settingsTab === "about" ? "active" : ""}`}
+                onClick={() => setSettingsTab("about")}
+              >
+                About
+              </button>
+            </div>
+            <div className="settings-content">
+              {settingsTab === "general" && (
+                <div className="settings-panel">
+                  <div className="settings-title">General</div>
+                  <div className="settings-text">Configure app defaults and behavior.</div>
+                </div>
+              )}
+              {settingsTab === "about" && (
+                <div className="settings-panel">
+                  <div className="settings-title">About</div>
+                  <div className="settings-text">
+                    Postman Clone v{appVersion || "0.0.0"} — built with Tauri + React.
+                  </div>
+                </div>
+              )}
+            </div>
+            <div className="modal-actions">
+              <button type="button" className="modal-button ghost" onClick={() => setSettingsModalOpen(false)}>
+                Close
+              </button>
             </div>
           </div>
         </div>
