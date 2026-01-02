@@ -25,6 +25,7 @@ import { REQUEST_TYPE_OPTIONS, getDefaultMethodForType, getRequestTypeLabel } fr
 import { type ThemeOption } from "../../lib/theme";
 import { SidebarHistory } from "./SidebarHistory";
 import { SidebarSettingsModal } from "./SidebarSettingsModal";
+import { useI18n } from "../../i18n";
 
 interface SidebarProps {
   appName: string;
@@ -126,6 +127,7 @@ export const Sidebar = ({
   theme,
   onThemeChange,
 }: SidebarProps) => {
+  const { t } = useI18n();
   const defaultOpen = useMemo(() => {
     const openMap: Record<string, boolean> = {};
     const walk = (nodes: CollectionNode[]) => {
@@ -253,7 +255,7 @@ export const Sidebar = ({
       x: event.clientX,
       y: event.clientY,
       targetId: "root",
-      targetName: "Collection",
+      targetName: t("app.collection"),
       targetType: "root",
     });
   };
@@ -693,7 +695,7 @@ export const Sidebar = ({
   };
 
   const getMoveOptions = () => {
-    const all = [{ id: null, label: "Root" }, ...listFolderOptions(collectionNodes)];
+    const all = [{ id: null, label: t("app.moveRoot") }, ...listFolderOptions(collectionNodes)];
     if (!moveModal) {
       return all;
     }
@@ -778,7 +780,7 @@ export const Sidebar = ({
     setCreateModal({
       parentId,
       type,
-      name: type === "folder" ? "New Folder" : "New Request",
+      name: type === "folder" ? t("app.newTitle", { type: t("app.contextFolder") }) : t("app.newRequest"),
       requestType: "http",
       method: getDefaultMethodForType("http"),
       url: "https://example.com",
@@ -1015,18 +1017,18 @@ export const Sidebar = ({
               }
               onEnvironmentChange(nextValue || null);
             }}
-            aria-label="Active environment"
+            aria-label={t("app.envActiveLabel")}
           >
-            <option value="">No Environment</option>
+            <option value="">{t("app.noEnvironment")}</option>
             {environments.map((env) => (
               <option key={env.id} value={env.id}>
-                {env.name || "Environment"}
+                {env.name || t("app.environment")}
               </option>
             ))}
             <option value="__separator__" disabled>
               ──────────
             </option>
-            <option value="__settings__">Settings</option>
+            <option value="__settings__">{t("app.settings")}</option>
           </select>
         </div>
       </div>
@@ -1035,7 +1037,7 @@ export const Sidebar = ({
         <div className="sidebar-search">
           <input
             className="sidebar-search-input"
-            placeholder="Search collections..."
+            placeholder={t("app.searchCollections")}
             value={collectionFilter}
             onChange={(event) => setCollectionFilter(event.target.value)}
           />
@@ -1046,7 +1048,7 @@ export const Sidebar = ({
           onDragOver={handleDragOverRoot}
           onDrop={handleDropOnRoot}
         >
-          <span>Collection</span>
+          <span>{t("app.collection")}</span>
           <button
             type="button"
             className="menu-action"
@@ -1056,7 +1058,7 @@ export const Sidebar = ({
                 x: event.currentTarget.getBoundingClientRect().left,
                 y: event.currentTarget.getBoundingClientRect().bottom + 6,
                 targetId: "root",
-                targetName: "Collection",
+                targetName: t("app.collection"),
                 targetType: "root",
               });
             }}
@@ -1073,7 +1075,7 @@ export const Sidebar = ({
           {(() => {
             const filtered = filterNodes(collectionNodes, collectionFilter);
             if (filtered.length === 0) {
-              return <div className="empty-state">No collections found.</div>;
+              return <div className="empty-state">{t("app.collectionEmpty")}</div>;
             }
             return renderNodes(filtered, 0, Boolean(collectionFilter.trim()));
           })()}
@@ -1092,7 +1094,7 @@ export const Sidebar = ({
       <div className="sidebar-header" style={{ borderTop: '1px solid var(--border-subtle)', marginTop: 'auto' }}>
         <button className="nav-item" onClick={() => setSettingsModalOpen(true)}>
           <Settings size={16} />
-          <span>Settings</span>
+          <span>{t("app.settings")}</span>
         </button>
         <div style={{ padding: '0 12px', fontSize: '0.7rem', color: 'var(--text-dim)', marginTop: 4 }}>
           v{appVersion}
@@ -1106,72 +1108,72 @@ export const Sidebar = ({
         >
           <div className="context-menu-title">
             {contextMenu.targetType === "root"
-              ? "Collection"
+              ? t("app.contextCollection")
               : contextMenu.targetType === "folder"
-                ? "Folder"
-                : "Request"}
+                ? t("app.contextFolder")
+                : t("app.contextRequest")}
           </div>
           {contextMenu.targetType === "folder" && (
             <>
               <button className="context-menu-item" onClick={() => startCreate("request")}>
-                Add Request
+                {t("app.addRequest")}
               </button>
               <button className="context-menu-item" onClick={() => startCreate("folder")}>
-                Add Folder
+                {t("app.addFolder")}
               </button>
               <button className="context-menu-item disabled" disabled>
-                Run
+                {t("app.run")}
               </button>
               <button className="context-menu-item disabled" disabled>
-                Share
+                {t("app.share")}
               </button>
               <button className="context-menu-item" onClick={() => handleContextCommand("move")}>
-                Move
+                {t("app.move")}
               </button>
               <button className="context-menu-item" onClick={() => handleContextAction("rename")}>
-                Rename
+                {t("app.rename")}
               </button>
               <button className="context-menu-item" onClick={() => handleContextCommand("duplicate")}>
-                Duplicate
+                {t("app.duplicate")}
               </button>
               <button className="context-menu-item" onClick={() => handleContextCommand("sort")}>
-                Sort
+                {t("app.sort")}
               </button>
               <button className="context-menu-item danger" onClick={() => handleContextAction("delete")}>
-                Delete
+                {t("app.delete")}
               </button>
             </>
           )}
           {contextMenu.targetType === "root" && (
             <>
               <button className="context-menu-item" onClick={() => startCreate("request")}>
-                Add Request
+                {t("app.addRequest")}
               </button>
               <button className="context-menu-item" onClick={() => startCreate("folder")}>
-                Add Folder
+                {t("app.addFolder")}
               </button>
               <button className="context-menu-item" onClick={() => handleContextCommand("sort")}>
-                Sort
+                {t("app.sort")}
               </button>
             </>
           )}
           {contextMenu.targetType === "request" && (
             <>
               <button className="context-menu-item" onClick={() => handleContextAction("rename")}>
-                Rename
+                {t("app.rename")}
               </button>
               <button className="context-menu-item" onClick={() => handleContextCommand("duplicate")}>
-                Duplicate
+                {t("app.duplicate")}
               </button>
               <button className="context-menu-item danger" onClick={() => handleContextAction("delete")}>
-                Delete
+                {t("app.delete")}
               </button>
             </>
           )}
           {contextMenu.targetType === "root" && (
             <>
               <button className="context-menu-item" onClick={() => handleContextCommand("sort")}>
-                Sort
+                {t("app.sort")}
               </button>
             </>
           )}
@@ -1180,10 +1182,17 @@ export const Sidebar = ({
       {renameModal && (
         <div className="modal-overlay" onClick={handleRenameCancel}>
           <div className="modal" onClick={(event) => event.stopPropagation()}>
-            <div className="modal-header">Rename {renameModal.targetType === "folder" ? "Folder" : "Request"}</div>
+            <div className="modal-header">
+              {t("app.renameTitle", {
+                type:
+                  renameModal.targetType === "folder"
+                    ? t("app.contextFolder")
+                    : t("app.contextRequest"),
+              })}
+            </div>
             <form className="modal-body" onSubmit={handleRenameSubmit}>
               <label className="modal-label" htmlFor="rename-input">
-                Name
+                {t("app.nameLabel")}
               </label>
               <input
                 id="rename-input"
@@ -1197,10 +1206,10 @@ export const Sidebar = ({
               />
               <div className="modal-actions">
                 <button type="button" className="modal-button ghost" onClick={handleRenameCancel}>
-                  Cancel
+                  {t("app.cancel")}
                 </button>
                 <button type="submit" className="modal-button primary">
-                  Save
+                  {t("app.save")}
                 </button>
               </div>
             </form>
@@ -1210,10 +1219,14 @@ export const Sidebar = ({
       {createModal && (
         <div className="modal-overlay" onClick={handleCreateCancel}>
           <div className="modal" onClick={(event) => event.stopPropagation()}>
-            <div className="modal-header">New {createModal.type === "folder" ? "Folder" : "Request"}</div>
+            <div className="modal-header">
+              {t("app.newTitle", {
+                type: createModal.type === "folder" ? t("app.contextFolder") : t("app.contextRequest"),
+              })}
+            </div>
             <form className="modal-body" onSubmit={handleCreateSubmit}>
               <label className="modal-label" htmlFor="create-name-input">
-                Name
+                {t("app.nameLabel")}
               </label>
               <input
                 id="create-name-input"
@@ -1226,7 +1239,7 @@ export const Sidebar = ({
               {createModal.type === "request" && (
                 <>
                   <label className="modal-label" htmlFor="create-type-input">
-                    Type
+                    {t("app.typeLabel")}
                   </label>
                   <select
                     id="create-type-input"
@@ -1252,7 +1265,7 @@ export const Sidebar = ({
                   {createModal.requestType === "http" ? (
                     <>
                   <label className="modal-label" htmlFor="create-method-input">
-                    Method
+                    {t("app.methodLabel")}
                   </label>
                   <select
                     id="create-method-input"
@@ -1271,7 +1284,7 @@ export const Sidebar = ({
                     <option value="OPTIONS">OPTIONS</option>
                   </select>
                   <label className="modal-label" htmlFor="create-url-input">
-                    URL
+                    {t("app.urlLabel")}
                   </label>
                   <input
                     id="create-url-input"
@@ -1285,7 +1298,7 @@ export const Sidebar = ({
                   ) : (
                     <>
                       <label className="modal-label" htmlFor="create-url-input">
-                        URL
+                        {t("app.urlLabel")}
                       </label>
                       <input
                         id="create-url-input"
@@ -1296,7 +1309,7 @@ export const Sidebar = ({
                         }
                       />
                       <div className="modal-text">
-                        {getRequestTypeLabel(createModal.requestType)} request builder coming soon.
+                        {t("app.requestBuilderSoon", { type: getRequestTypeLabel(createModal.requestType) })}
                       </div>
                     </>
                   )}
@@ -1304,10 +1317,10 @@ export const Sidebar = ({
               )}
               <div className="modal-actions">
                 <button type="button" className="modal-button ghost" onClick={handleCreateCancel}>
-                  Cancel
+                  {t("app.cancel")}
                 </button>
                 <button type="submit" className="modal-button primary">
-                  Create
+                  {t("app.create")}
                 </button>
               </div>
             </form>
@@ -1317,17 +1330,21 @@ export const Sidebar = ({
       {deleteModal && (
         <div className="modal-overlay" onClick={handleDeleteCancel}>
           <div className="modal" onClick={(event) => event.stopPropagation()}>
-            <div className="modal-header">Delete {deleteModal.targetType === "folder" ? "Folder" : "Request"}</div>
+            <div className="modal-header">
+              {t("app.deleteTitle", {
+                type: deleteModal.targetType === "folder" ? t("app.contextFolder") : t("app.contextRequest"),
+              })}
+            </div>
             <div className="modal-body">
               <div className="modal-text">
-                Delete "{deleteModal.targetName}"? This action cannot be undone.
+                {t("app.deleteConfirm", { name: deleteModal.targetName })}
               </div>
               <div className="modal-actions">
                 <button type="button" className="modal-button ghost" onClick={handleDeleteCancel}>
-                  Cancel
+                  {t("app.cancel")}
                 </button>
                 <button type="button" className="modal-button danger" onClick={handleDeleteConfirm}>
-                  Delete
+                  {t("app.delete")}
                 </button>
               </div>
             </div>
@@ -1337,10 +1354,14 @@ export const Sidebar = ({
       {moveModal && (
         <div className="modal-overlay" onClick={handleMoveCancel}>
           <div className="modal" onClick={(event) => event.stopPropagation()}>
-            <div className="modal-header">Move {moveModal.targetType === "folder" ? "Folder" : "Request"}</div>
+            <div className="modal-header">
+              {t("app.moveTitle", {
+                type: moveModal.targetType === "folder" ? t("app.contextFolder") : t("app.contextRequest"),
+              })}
+            </div>
             <div className="modal-body">
               <label className="modal-label" htmlFor="move-destination-input">
-                Destination
+                {t("app.destinationLabel")}
               </label>
               <select
                 id="move-destination-input"
@@ -1360,10 +1381,10 @@ export const Sidebar = ({
               </select>
               <div className="modal-actions">
                 <button type="button" className="modal-button ghost" onClick={handleMoveCancel}>
-                  Cancel
+                  {t("app.cancel")}
                 </button>
                 <button type="button" className="modal-button primary" onClick={handleMoveConfirm}>
-                  Move
+                  {t("app.move")}
                 </button>
               </div>
             </div>
@@ -1380,13 +1401,13 @@ export const Sidebar = ({
       {envModalOpen && (
         <div className="modal-overlay" onClick={() => setEnvModalOpen(false)}>
           <div className="modal env-modal" onClick={(event) => event.stopPropagation()}>
-            <div className="modal-header">Environments</div>
+            <div className="modal-header">{t("app.envModalTitle")}</div>
             <div className="env-modal-body">
               <div className="env-modal-sidebar">
                 <div className="env-sidebar-header">
-                  <span>Environments</span>
+                  <span>{t("app.envModalTitle")}</span>
                   <button type="button" className="env-button" onClick={onEnvironmentAdd}>
-                    + New
+                    {t("app.envNew")}
                   </button>
                 </div>
                 <div className="env-list">
@@ -1395,7 +1416,7 @@ export const Sidebar = ({
                     className={`env-list-item ${activeEnvironmentId ? "" : "active"}`}
                     onClick={() => onEnvironmentChange(null)}
                   >
-                    No Environment
+                    {t("app.noEnvironment")}
                   </button>
                   {environments.map((env) => (
                     <button
@@ -1404,15 +1425,17 @@ export const Sidebar = ({
                       className={`env-list-item ${activeEnvironmentId === env.id ? "active" : ""}`}
                       onClick={() => onEnvironmentChange(env.id)}
                     >
-                      <span className="env-list-name">{env.name || "Environment"}</span>
+                      <span className="env-list-name">{env.name || t("app.environment")}</span>
                       <span className="env-list-meta">
-                        {env.variables.filter((item) => item.enabled && item.key.trim()).length} vars
+                        {t("app.envVarsCount", {
+                          count: env.variables.filter((item) => item.enabled && item.key.trim()).length,
+                        })}
                       </span>
                     </button>
                   ))}
                 </div>
                 <div className="env-sidebar-hint">
-                  Use <code>{"{{variable}}"}</code> in URLs, headers, or bodies.
+                  {t("app.envHint")}
                 </div>
               </div>
               <div className="env-modal-main">
@@ -1421,7 +1444,7 @@ export const Sidebar = ({
                     <div className="env-main-header">
                       <div className="env-name-field">
                         <label className="modal-label" htmlFor="env-name-input">
-                          Name
+                          {t("app.envNameLabel")}
                         </label>
                         <input
                           id="env-name-input"
@@ -1436,14 +1459,14 @@ export const Sidebar = ({
                           className="env-button danger"
                           onClick={() => onEnvironmentDelete(activeEnvironment.id)}
                         >
-                          Delete
+                          {t("app.envDelete")}
                         </button>
                       </div>
                     </div>
                     <div className="env-vars-header">
                       <div>
-                        <div className="env-vars-title">Variables</div>
-                        <div className="env-vars-subtitle">Set key/value pairs for this environment.</div>
+                        <div className="env-vars-title">{t("app.envVariables")}</div>
+                        <div className="env-vars-subtitle">{t("app.envVariablesSubtitle")}</div>
                       </div>
                     </div>
                     <KeyValueEditor
@@ -1456,14 +1479,14 @@ export const Sidebar = ({
                   </>
                 ) : (
                   <div className="empty-state env-empty-state">
-                    Select an environment to edit variables.
+                    {t("app.envEmptyState")}
                   </div>
                 )}
               </div>
             </div>
             <div className="modal-actions">
               <button type="button" className="modal-button ghost" onClick={() => setEnvModalOpen(false)}>
-                Close
+                {t("app.close")}
               </button>
             </div>
           </div>

@@ -4,6 +4,7 @@ import { RequestPane } from "./RequestPane";
 import { ResponsePane } from "./ResponsePane";
 import { UrlBar } from "./UrlBar";
 import { useState, useEffect } from "react";
+import { useI18n } from "../../i18n";
 
 interface HttpWorkspaceProps {
   method: string;
@@ -130,6 +131,7 @@ export const HttpWorkspace = ({
   followRedirects,
   onFollowRedirectsChange,
 }: HttpWorkspaceProps) => {
+  const { t } = useI18n();
   // Height state for the resizable pane
   const [requestPaneHeight, setRequestPaneHeight] = useState(300);
 
@@ -178,7 +180,7 @@ export const HttpWorkspace = ({
                 {...hProps} 
                 ref={ref} 
                 className="react-resizable-handle" 
-                title="Drag to resize"
+                title={t("app.dragResize")}
              />
           )}
         >

@@ -5,6 +5,7 @@ import { ResponseCookiesTab, type ParsedCookieRow } from "./ResponseTabs/Respons
 import { ResponseHeadersTab } from "./ResponseTabs/ResponseHeadersTab";
 import { ResponsePreviewTab } from "./ResponseTabs/ResponsePreviewTab";
 import { ResponseRawTab } from "./ResponseTabs/ResponseRawTab";
+import { useI18n } from "../../i18n";
 
 const splitSetCookieHeader = (value: string) =>
   value
@@ -79,6 +80,7 @@ const TabButton = ({ active, label, onClick }: { active: boolean; label: string;
 );
 
 export const ResponsePane = (props: ResponsePaneProps) => {
+  const { t } = useI18n();
   const { 
     activeTab, onTabChange, 
     responseCode, responseStatus, responseTime, responseSize, 
@@ -165,23 +167,28 @@ export const ResponsePane = (props: ResponsePaneProps) => {
     <div className="response-pane" style={{ flex: 1, height: '100%' }}>
       <div className="pane-header">
         <div className="tabs">
-          {(["Preview", "Header", "Cookies", "Raw"] as const).map(tab => {
+          {([
+            { id: "Preview", label: t("response.preview") },
+            { id: "Header", label: t("response.headers") },
+            { id: "Cookies", label: t("response.cookies") },
+            { id: "Raw", label: t("response.raw") },
+          ] as const).map((tab) => {
             const label =
-              tab === "Cookies"
+              tab.id === "Cookies"
                 ? parsedCookies.length > 0
-                  ? `Cookies (${parsedCookies.length})`
-                  : "Cookies"
-                : tab === "Header"
+                  ? t("response.cookiesCount", { count: parsedCookies.length })
+                  : t("response.cookies")
+                : tab.id === "Header"
                   ? responseHeaders.length > 0
-                    ? `Header (${responseHeaders.length})`
-                    : "Header"
-                  : tab;
+                    ? t("response.headersCount", { count: responseHeaders.length })
+                    : t("response.headers")
+                  : tab.label;
             return (
               <TabButton
-                key={tab}
+                key={tab.id}
                 label={label}
-                active={activeTab === tab}
-                onClick={() => onTabChange(tab)}
+                active={activeTab === tab.id}
+                onClick={() => onTabChange(tab.id)}
               />
             );
           })}
@@ -204,7 +211,7 @@ export const ResponsePane = (props: ResponsePaneProps) => {
                 className={`status-toggle-btn ${followRedirects ? "active" : ""}`}
                 onClick={() => onFollowRedirectsChange(!followRedirects)}
               >
-                Redirects {followRedirects ? "On" : "Off"}
+                {t("response.redirects")} {followRedirects ? t("state.on") : t("state.off")}
               </button>
             </div>
           </div>
@@ -216,14 +223,14 @@ export const ResponsePane = (props: ResponsePaneProps) => {
           <div style={{ color: 'var(--error)', padding: 20 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
               <AlertCircle />
-              <strong>Error</strong>
+              <strong>{t("response.error")}</strong>
             </div>
             {errorMessage}
           </div>
         ) : !responseCode ? (
           <div className="empty-state">
             <Send size={48} opacity={0.1} />
-            <span>Send a request to see the response here</span>
+            <span>{t("response.empty")}</span>
           </div>
         ) : (
           <>

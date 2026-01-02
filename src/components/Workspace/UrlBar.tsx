@@ -1,6 +1,7 @@
 import { Send, MoreHorizontal } from "lucide-react";
 import { EnvInput } from "../Editors/EnvInput";
 import { useEffect, useRef, useState } from "react";
+import { useI18n } from "../../i18n";
 
 interface UrlBarProps {
   method: string;
@@ -44,6 +45,7 @@ export const UrlBar = ({
   urlPreview,
   urlIsValid,
 }: UrlBarProps) => {
+  const { t } = useI18n();
   const [isMethodOpen, setIsMethodOpen] = useState(false);
   const methodMenuRef = useRef<HTMLDivElement | null>(null);
 
@@ -75,7 +77,7 @@ export const UrlBar = ({
             {method}
           </button>
           {isMethodOpen && (
-            <div className="method-menu" role="listbox" aria-label="HTTP method">
+            <div className="method-menu" role="listbox" aria-label={t("app.methodMenu")}>
               {METHODS.map((m) => (
                 <button
                   key={m}
@@ -102,7 +104,7 @@ export const UrlBar = ({
           className="url-input"
           overlayClassName="env-overlay-url"
           value={url}
-          placeholder="Enter URL"
+          placeholder={t("app.urlPlaceholder")}
           environmentValues={environmentValues}
           title={getTemplateTooltip(url, environmentValues)}
           onChange={onUrlChange}
@@ -114,13 +116,13 @@ export const UrlBar = ({
           ) : (
             <>
               <Send size={16} />
-              <span>Send</span>
+              <span>{t("app.send")}</span>
             </>
           )}
         </button>
       </div>
       <div className="url-bar-meta">
-        <span className="url-meta-label">Resolved:</span>
+        <span className="url-meta-label">{t("app.resolvedLabel")}</span>
         <span className="url-meta-value" title={urlPreview}>
           {urlPreview}
         </span>

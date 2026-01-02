@@ -1,5 +1,6 @@
 import { KeyValue } from "../../../types";
 import { KeyValueEditor } from "../../Editors/KeyValueEditor";
+import { useI18n } from "../../../i18n";
 
 type RequestHeadersTabProps = {
   headers: KeyValue[];
@@ -17,22 +18,25 @@ export const RequestHeadersTab = ({
   onHeadersChange,
   onHeadersRemove,
   onHeadersReplace,
-}: RequestHeadersTabProps) => (
-  <>
-    <div className="kv-toolbar">
-      <div className="kv-toolbar-spacer" />
-      <button type="button" className="kv-add" onClick={onHeadersAdd}>
-        + Add Header
-      </button>
-    </div>
-    <KeyValueEditor
-      items={headers}
-      onChange={onHeadersChange}
-      onRemove={onHeadersRemove}
-      environmentValues={environmentValues}
-      onItemsReplace={onHeadersReplace}
-      showBulkEdit
-      duplicateCheck="case-insensitive"
-    />
-  </>
-);
+}: RequestHeadersTabProps) => {
+  const { t } = useI18n();
+  return (
+    <>
+      <div className="kv-toolbar">
+        <div className="kv-toolbar-spacer" />
+        <button type="button" className="kv-add" onClick={onHeadersAdd}>
+          {t("request.addHeader")}
+        </button>
+      </div>
+      <KeyValueEditor
+        items={headers}
+        onChange={onHeadersChange}
+        onRemove={onHeadersRemove}
+        environmentValues={environmentValues}
+        onItemsReplace={onHeadersReplace}
+        showBulkEdit
+        duplicateCheck="case-insensitive"
+      />
+    </>
+  );
+};

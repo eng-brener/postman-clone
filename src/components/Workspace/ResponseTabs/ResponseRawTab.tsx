@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { useI18n } from "../../../i18n";
 
 type ResponseRawTabProps = {
   responseRaw: string;
@@ -15,6 +16,7 @@ const escapeHtml = (value: string) =>
 const escapeRegExp = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 export const ResponseRawTab = ({ responseRaw }: ResponseRawTabProps) => {
+  const { t } = useI18n();
   const [rawSearch, setRawSearch] = useState("");
   const [rawWrap, setRawWrap] = useState(true);
 
@@ -32,7 +34,7 @@ export const ResponseRawTab = ({ responseRaw }: ResponseRawTabProps) => {
       <div className="response-raw-toolbar">
         <input
           className="response-raw-search"
-          placeholder="Search in response"
+          placeholder={t("response.search")}
           value={rawSearch}
           onChange={(event) => setRawSearch(event.target.value)}
         />
@@ -41,7 +43,7 @@ export const ResponseRawTab = ({ responseRaw }: ResponseRawTabProps) => {
           className={`response-raw-toggle ${rawWrap ? "active" : ""}`}
           onClick={() => setRawWrap((prev) => !prev)}
         >
-          Wrap {rawWrap ? "On" : "Off"}
+          {t("response.wrap", { state: rawWrap ? t("state.on") : t("state.off") })}
         </button>
       </div>
       <pre

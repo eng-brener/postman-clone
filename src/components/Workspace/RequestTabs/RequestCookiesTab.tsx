@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { CookieEntry } from "../../../types";
+import { useI18n } from "../../../i18n";
 
 type RequestCookiesTabProps = {
   cookieContext: { host: string; path: string } | null;
@@ -20,6 +21,7 @@ export const RequestCookiesTab = ({
   formatDate,
   parseDate,
 }: RequestCookiesTabProps) => {
+  const { t } = useI18n();
   const [cookieDomainFilter, setCookieDomainFilter] = useState("");
   const [cookiePathFilter, setCookiePathFilter] = useState("");
 
@@ -42,56 +44,56 @@ export const RequestCookiesTab = ({
     <div className="cookie-pane">
       {!cookieContext && (
         <div className="empty-state" style={{ height: "100%" }}>
-          <span style={{ opacity: 0.6 }}>Enter a valid URL to manage cookies.</span>
+          <span style={{ opacity: 0.6 }}>{t("request.cookiesEmptyUrl")}</span>
         </div>
       )}
       {cookieContext && (
         <>
           <div className="cookie-toolbar">
             <div className="cookie-scope">
-              <span className="cookie-scope-label">Domain</span>
+              <span className="cookie-scope-label">{t("request.cookiesDomain")}</span>
               <span className="cookie-scope-value">{cookieContext.host}</span>
             </div>
             <button type="button" className="cookie-add" onClick={onCookieAdd}>
-              + Add Cookie
+              {t("request.addCookie")}
             </button>
           </div>
           <div className="cookie-filters">
             <input
               className="cookie-filter-input"
-              placeholder="Filter domain"
+              placeholder={t("request.filterDomain")}
               value={cookieDomainFilter}
               onChange={(event) => setCookieDomainFilter(event.target.value)}
             />
             <input
               className="cookie-filter-input"
-              placeholder="Filter path"
+              placeholder={t("request.filterPath")}
               value={cookiePathFilter}
               onChange={(event) => setCookiePathFilter(event.target.value)}
             />
           </div>
           {hasInsecureSameSite && (
             <div className="cookie-warning">
-              SameSite=None requires Secure. Some cookies may be rejected by browsers.
+              {t("request.cookiesWarning")}
             </div>
           )}
           {filteredCookies.length === 0 ? (
             <div className="empty-state" style={{ paddingTop: 20 }}>
-              {cookies.length === 0 ? "No cookies for this domain yet." : "No cookies match the filters."}
+              {cookies.length === 0 ? t("request.cookiesEmptyDomain") : t("request.cookiesEmptyFilter")}
             </div>
           ) : (
             <div className="cookie-table">
               <div className="cookie-row cookie-header">
-                <div className="cookie-cell-header center">On</div>
-                <div className="cookie-cell-header">Name</div>
-                <div className="cookie-cell-header">Value</div>
-                <div className="cookie-cell-header">Domain</div>
-                <div className="cookie-cell-header">Path</div>
-                <div className="cookie-cell-header center">Host Only</div>
-                <div className="cookie-cell-header">Expires</div>
-                <div className="cookie-cell-header center">Secure</div>
-                <div className="cookie-cell-header center">HttpOnly</div>
-                <div className="cookie-cell-header">SameSite</div>
+                <div className="cookie-cell-header center">{t("request.cookiesOn")}</div>
+                <div className="cookie-cell-header">{t("request.cookiesName")}</div>
+                <div className="cookie-cell-header">{t("request.cookiesValue")}</div>
+                <div className="cookie-cell-header">{t("request.cookiesDomainHeader")}</div>
+                <div className="cookie-cell-header">{t("request.cookiesPath")}</div>
+                <div className="cookie-cell-header center">{t("request.cookiesHostOnly")}</div>
+                <div className="cookie-cell-header">{t("request.cookiesExpires")}</div>
+                <div className="cookie-cell-header center">{t("request.cookiesSecure")}</div>
+                <div className="cookie-cell-header center">{t("request.cookiesHttpOnly")}</div>
+                <div className="cookie-cell-header">{t("request.cookiesSameSite")}</div>
                 <div className="cookie-cell-header center"></div>
               </div>
               {filteredCookies.map((cookie) => (
@@ -182,7 +184,7 @@ export const RequestCookiesTab = ({
                   </div>
                   <div className="cookie-cell center">
                     <button type="button" className="cookie-delete" onClick={() => onCookieRemove(cookie.id)}>
-                      Delete
+                      {t("request.cookiesDelete")}
                     </button>
                   </div>
                 </div>

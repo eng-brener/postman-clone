@@ -7,6 +7,7 @@ import { RequestCookiesTab } from "./RequestTabs/RequestCookiesTab";
 import { RequestHeadersTab } from "./RequestTabs/RequestHeadersTab";
 import { RequestParamsTab } from "./RequestTabs/RequestParamsTab";
 import { RequestSettingsTab } from "./RequestTabs/RequestSettingsTab";
+import { useI18n } from "../../i18n";
 
 interface RequestPaneProps {
   activeTab: string;
@@ -68,6 +69,7 @@ const TabButton = ({ active, label, onClick }: { active: boolean; label: string;
 );
 
 export const RequestPane = (props: RequestPaneProps) => {
+  const { t } = useI18n();
   const { 
       activeTab, onTabChange, 
       environmentValues,
@@ -149,12 +151,19 @@ export const RequestPane = (props: RequestPaneProps) => {
     <div className="request-pane">
       <div className="pane-header">
         <div className="tabs">
-          {["Params", "Authorization", "Headers", "Cookies", "Body", "Settings"].map(tab => (
+          {[
+            { id: "Params", label: t("tabs.params") },
+            { id: "Authorization", label: t("tabs.authorization") },
+            { id: "Headers", label: t("tabs.headers") },
+            { id: "Cookies", label: t("tabs.cookies") },
+            { id: "Body", label: t("tabs.body") },
+            { id: "Settings", label: t("tabs.settings") },
+          ].map((tab) => (
             <TabButton
-              key={tab}
-              label={tab}
-              active={activeTab === tab}
-              onClick={() => onTabChange(tab)}
+              key={tab.id}
+              label={tab.label}
+              active={activeTab === tab.id}
+              onClick={() => onTabChange(tab.id)}
             />
           ))}
         </div>

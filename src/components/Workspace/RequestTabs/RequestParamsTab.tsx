@@ -1,5 +1,6 @@
 import { KeyValue } from "../../../types";
 import { KeyValueEditor } from "../../Editors/KeyValueEditor";
+import { useI18n } from "../../../i18n";
 
 type RequestParamsTabProps = {
   params: KeyValue[];
@@ -17,21 +18,24 @@ export const RequestParamsTab = ({
   onParamsChange,
   onParamsRemove,
   onParamsReplace,
-}: RequestParamsTabProps) => (
-  <>
-    <div className="kv-toolbar">
-      <div className="kv-toolbar-spacer" />
-      <button type="button" className="kv-add" onClick={onParamsAdd}>
-        + Add Param
-      </button>
-    </div>
-    <KeyValueEditor
-      items={params}
-      onChange={onParamsChange}
-      onRemove={onParamsRemove}
-      environmentValues={environmentValues}
-      onItemsReplace={onParamsReplace}
-      showBulkEdit
-    />
-  </>
-);
+}: RequestParamsTabProps) => {
+  const { t } = useI18n();
+  return (
+    <>
+      <div className="kv-toolbar">
+        <div className="kv-toolbar-spacer" />
+        <button type="button" className="kv-add" onClick={onParamsAdd}>
+          {t("request.addParam")}
+        </button>
+      </div>
+      <KeyValueEditor
+        items={params}
+        onChange={onParamsChange}
+        onRemove={onParamsRemove}
+        environmentValues={environmentValues}
+        onItemsReplace={onParamsReplace}
+        showBulkEdit
+      />
+    </>
+  );
+};

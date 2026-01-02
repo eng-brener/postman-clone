@@ -27,6 +27,7 @@ import {
 } from "./types";
 import { REQUEST_TYPE_OPTIONS, getDefaultMethodForType, getRequestTypeLabel } from "./lib/request";
 import { THEME_STORAGE_KEY, type ThemeOption } from "./lib/theme";
+import { useI18n } from "./i18n";
 
 const emptyRow = (): KeyValue => ({ key: "", value: "", enabled: true });
 const cloneKeyValues = (items: KeyValue[]) => items.map((item) => ({ ...item }));
@@ -332,6 +333,7 @@ type RequestTab = {
 };
 
 function App() {
+  const { t } = useI18n();
   // App Info
   const [appName, setAppName] = useState("Postman Clone");
   const [appVersion, setAppVersion] = useState<string | null>(null);
@@ -1602,7 +1604,7 @@ function App() {
       <main className="main-content">
         <div className={`request-tabs-bar ${tabs.length === 0 ? "empty" : ""}`}>
           <div className={`request-tabs ${tabs.length === 0 ? "empty" : ""}`}>
-            {tabs.length === 0 && "No tabs open"}
+            {tabs.length === 0 && t("app.noTabs")}
             {tabs.map((tab) => (
               <div
                 key={tab.id}
@@ -1610,7 +1612,7 @@ function App() {
                 onClick={() => handleSelectTab(tab.id)}
               >
                 <span className={`method-badge method-${tab.method}`}>{tab.method}</span>
-                <span className="request-tab-label">{tab.url || "New Request"}</span>
+                <span className="request-tab-label">{tab.url || t("app.requestTabNew")}</span>
                 <button
                   type="button"
                   className="request-tab-close"
@@ -1699,10 +1701,10 @@ function App() {
         ) : (
           <div className="empty-workspace">
             <div className="empty-workspace-card">
-              <div className="empty-title">Postman Clone</div>
-              <div className="empty-subtitle">Open a request tab to get started.</div>
+              <div className="empty-title">{appName}</div>
+              <div className="empty-subtitle">{t("app.emptySubtitle")}</div>
               <button type="button" className="empty-cta" onClick={handleAddTab}>
-                + New Request
+                {t("app.emptyCta")}
               </button>
             </div>
           </div>

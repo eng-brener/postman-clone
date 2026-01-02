@@ -2,6 +2,7 @@ import { Trash2, AlignLeft } from "lucide-react";
 import { useMemo, useState } from "react";
 import { KeyValue } from "../../types";
 import { EnvInput } from "./EnvInput";
+import { useI18n } from "../../i18n";
 
 interface KeyValueEditorProps {
   items: KeyValue[];
@@ -39,6 +40,7 @@ export const KeyValueEditor = ({
   showBulkEdit = false,
   duplicateCheck = "case-sensitive",
 }: KeyValueEditorProps) => {
+  const { t } = useI18n();
   const [bulkOpen, setBulkOpen] = useState(false);
   const [bulkValue, setBulkValue] = useState("");
 
@@ -111,15 +113,15 @@ export const KeyValueEditor = ({
   return (
     <div className="kv-editor">
       <div className="kv-header">
-        <div className="kv-header-cell">Key</div>
-        <div className="kv-header-cell">Value</div>
+        <div className="kv-header-cell">{t("editor.key")}</div>
+        <div className="kv-header-cell">{t("editor.value")}</div>
         <div className="kv-header-cell actions">
           {showBulkEdit && (
             <button
               type="button"
               className="kv-bulk-toggle"
               onClick={bulkOpen ? () => setBulkOpen(false) : openBulkEdit}
-              title="Bulk edit"
+              title={t("editor.bulkEdit")}
             >
               <AlignLeft size={14} />
             </button>
@@ -128,19 +130,19 @@ export const KeyValueEditor = ({
       </div>
       {bulkOpen && (
         <div className="kv-bulk-panel">
-          <div className="kv-bulk-hint">One per line. Use “key: value”. Prefix with “#” to disable.</div>
+          <div className="kv-bulk-hint">{t("editor.bulkHint")}</div>
           <textarea
             className="kv-bulk-input"
             value={bulkValue}
             onChange={(event) => setBulkValue(event.target.value)}
-            placeholder="Authorization: Bearer {{token}}"
+            placeholder={t("editor.bulkPlaceholder")}
           />
           <div className="kv-bulk-actions">
             <button type="button" className="kv-bulk-cancel" onClick={() => setBulkOpen(false)}>
-              Cancel
+              {t("editor.bulkCancel")}
             </button>
             <button type="button" className="kv-bulk-apply" onClick={applyBulkEdit}>
-              Apply
+              {t("editor.bulkApply")}
             </button>
           </div>
         </div>
@@ -155,7 +157,7 @@ export const KeyValueEditor = ({
               <EnvInput
                 className="kv-input"
                 overlayClassName="env-overlay-ghost"
-                placeholder="Key"
+                placeholder={t("editor.keyPlaceholder")}
                 value={item.key}
                 environmentValues={environmentValues}
                 title={getTemplateTooltip(item.key, environmentValues)}
@@ -167,7 +169,7 @@ export const KeyValueEditor = ({
               <EnvInput
                 className="kv-input"
                 overlayClassName="env-overlay-ghost"
-                placeholder="Value"
+                placeholder={t("editor.valuePlaceholder")}
                 value={item.value}
                 environmentValues={environmentValues}
                 title={getTemplateTooltip(item.value, environmentValues)}
@@ -185,7 +187,7 @@ export const KeyValueEditor = ({
                 />
               </div>
               {items.length > 1 && (
-                <button className="btn-icon" onClick={() => onRemove(idx)} title="Remove item">
+                <button className="btn-icon" onClick={() => onRemove(idx)} title={t("editor.removeItem")}>
                   <Trash2 size={14} />
                 </button>
               )}
@@ -195,7 +197,7 @@ export const KeyValueEditor = ({
       })}
       {duplicateKeys.size > 0 && (
         <div className="kv-duplicate-warning">
-          Duplicate keys detected.
+          {t("editor.duplicateWarning")}
         </div>
       )}
     </div>
