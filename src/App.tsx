@@ -24,6 +24,7 @@ import {
   RequestData,
   RequestSettings,
   RequestType,
+  Workspace,
 } from "./types";
 import { REQUEST_TYPE_OPTIONS, getDefaultMethodForType, getRequestTypeLabel } from "./lib/request";
 import { THEME_STORAGE_KEY, type ThemeOption } from "./lib/theme";
@@ -102,6 +103,8 @@ const splitSetCookieHeader = (value: string) =>
 const COLLECTION_STORAGE_KEY = "postman-clone.collection";
 const ENV_STORAGE_KEY = "postman-clone.environments";
 const ACTIVE_ENV_STORAGE_KEY = "postman-clone.environments.active";
+const WORKSPACE_STORAGE_KEY = "postman-clone.workspaces";
+const ACTIVE_WORKSPACE_STORAGE_KEY = "postman-clone.workspaces.active";
 
 type ParsedCookie = Omit<CookieEntry, "id" | "enabled"> & { expired: boolean };
 
@@ -534,6 +537,59 @@ function App() {
     },
   ];
 
+  const createWorkspace = (
+    name = "New Workspace",
+    overrides?: Partial<Pick<Workspace, "collectionNodes" | "environments" | "activeEnvironmentId" | "settings">>
+  ): Workspace => {
+    const environments = overrides?.environments ?? createDefaultEnvironments();
+    const activeEnvironmentId =
+      overrides?.activeEnvironmentId ?? environments[0]?.id ?? null;
+    return {
+      id: `ws-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+      name,
+      collectionNodes: overrides?.collectionNodes ?? createInitialCollectionTree(),
+      environments,
+      activeEnvironmentId,
+      settings: overrides?.settings ?? {},
+    };
+  };
+
+  const normalizeWorkspaceList = (value: unknown, fallback: Workspace[]): Workspace[] => {
+    if (!Array.isArray(value)) {
+      return fallback;
+    }
+    const normalized = value
+      .map((item) => {
+        if (!item || typeof item !== "object") {
+          return null;
+        }
+        const record = item as Partial<Workspace>;
+        const id =
+          typeof record.id === "string" ? record.id : `ws-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+        const name = typeof record.name === "string" ? record.name : "Workspace";
+        const collectionNodes = normalizeCollectionNodes(record.collectionNodes);
+        const environments = normalizeEnvironmentList(record.environments, createDefaultEnvironments());
+        const activeEnvironmentId =
+          typeof record.activeEnvironmentId === "string" ? record.activeEnvironmentId : null;
+        const safeActiveEnv =
+          activeEnvironmentId && environments.some((env) => env.id === activeEnvironmentId)
+            ? activeEnvironmentId
+            : environments[0]?.id ?? null;
+        const settings =
+          record.settings && typeof record.settings === "object" ? { ...record.settings } : {};
+        return {
+          id,
+          name,
+          collectionNodes: collectionNodes.length > 0 ? collectionNodes : createInitialCollectionTree(),
+          environments,
+          activeEnvironmentId: safeActiveEnv,
+          settings,
+        } as Workspace;
+      })
+      .filter((ws): ws is Workspace => Boolean(ws));
+    return normalized.length > 0 ? normalized : fallback;
+  };
+
   const createDefaultTab = (): RequestTab => ({
     id: `tab-${Date.now()}-${Math.random().toString(16).slice(2)}`,
     collectionId: null,
@@ -561,10 +617,7 @@ function App() {
     responseLanguage: "plaintext",
   });
 
-  const [collectionNodes, setCollectionNodes] = useState<CollectionNode[]>(() => {
-    if (typeof window === "undefined" || !("localStorage" in window)) {
-      return createInitialCollectionTree();
-    }
+  const getLegacyCollectionNodes = (): CollectionNode[] => {
     try {
       const stored = window.localStorage.getItem(COLLECTION_STORAGE_KEY);
       if (!stored) {
@@ -576,20 +629,9 @@ function App() {
     } catch {
       return createInitialCollectionTree();
     }
-  });
+  };
 
-  useEffect(() => {
-    try {
-      window.localStorage.setItem(COLLECTION_STORAGE_KEY, JSON.stringify(collectionNodes));
-    } catch {
-      // ignore persistence failures
-    }
-  }, [collectionNodes]);
-
-  const [environments, setEnvironments] = useState<Environment[]>(() => {
-    if (typeof window === "undefined" || !("localStorage" in window)) {
-      return createDefaultEnvironments();
-    }
+  const getLegacyEnvironments = (): Environment[] => {
     try {
       const stored = window.localStorage.getItem(ENV_STORAGE_KEY);
       if (!stored) {
@@ -600,19 +642,58 @@ function App() {
     } catch {
       return createDefaultEnvironments();
     }
-  });
+  };
 
-  const [activeEnvironmentId, setActiveEnvironmentId] = useState<string | null>(() => {
-    if (typeof window === "undefined" || !("localStorage" in window)) {
-      return "env-default";
-    }
+  const getLegacyActiveEnvironmentId = (): string | null => {
     try {
       const stored = window.localStorage.getItem(ACTIVE_ENV_STORAGE_KEY);
-      return stored || "env-default";
+      return stored || null;
     } catch {
-      return "env-default";
+      return null;
+    }
+  };
+
+  const createDefaultWorkspace = (
+    overrides?: Partial<Pick<Workspace, "collectionNodes" | "environments" | "activeEnvironmentId" | "settings">>
+  ) => createWorkspace("Default Workspace", overrides);
+
+  const [workspaces, setWorkspaces] = useState<Workspace[]>(() => {
+    if (typeof window === "undefined" || !("localStorage" in window)) {
+      return [createDefaultWorkspace()];
+    }
+    try {
+      const stored = window.localStorage.getItem(WORKSPACE_STORAGE_KEY);
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        return normalizeWorkspaceList(parsed, [createDefaultWorkspace()]);
+      }
+    } catch {
+      // ignore persistence failures
+    }
+    return [
+      createDefaultWorkspace({
+        collectionNodes: getLegacyCollectionNodes(),
+        environments: getLegacyEnvironments(),
+        activeEnvironmentId: getLegacyActiveEnvironmentId(),
+      }),
+    ];
+  });
+
+  const [activeWorkspaceId, setActiveWorkspaceId] = useState<string | null>(() => {
+    if (typeof window === "undefined" || !("localStorage" in window)) {
+      return null;
+    }
+    try {
+      const stored = window.localStorage.getItem(ACTIVE_WORKSPACE_STORAGE_KEY);
+      return stored || null;
+    } catch {
+      return null;
     }
   });
+
+  const [collectionNodes, setCollectionNodes] = useState<CollectionNode[]>(createInitialCollectionTree);
+  const [environments, setEnvironments] = useState<Environment[]>(createDefaultEnvironments);
+  const [activeEnvironmentId, setActiveEnvironmentId] = useState<string | null>("env-default");
 
   const [theme, setTheme] = useState<ThemeOption>(() => {
     if (typeof window === "undefined" || !("localStorage" in window)) {
@@ -624,23 +705,23 @@ function App() {
 
   useEffect(() => {
     try {
-      window.localStorage.setItem(ENV_STORAGE_KEY, JSON.stringify(environments));
+      window.localStorage.setItem(WORKSPACE_STORAGE_KEY, JSON.stringify(workspaces));
     } catch {
       // ignore persistence failures
     }
-  }, [environments]);
+  }, [workspaces]);
 
   useEffect(() => {
     try {
-      if (activeEnvironmentId) {
-        window.localStorage.setItem(ACTIVE_ENV_STORAGE_KEY, activeEnvironmentId);
+      if (activeWorkspaceId) {
+        window.localStorage.setItem(ACTIVE_WORKSPACE_STORAGE_KEY, activeWorkspaceId);
       } else {
-        window.localStorage.removeItem(ACTIVE_ENV_STORAGE_KEY);
+        window.localStorage.removeItem(ACTIVE_WORKSPACE_STORAGE_KEY);
       }
     } catch {
       // ignore persistence failures
     }
-  }, [activeEnvironmentId]);
+  }, [activeWorkspaceId]);
 
   useEffect(() => {
     try {
@@ -655,6 +736,55 @@ function App() {
       document.documentElement.setAttribute("data-theme", theme);
     }
   }, [theme]);
+
+  useEffect(() => {
+    if (activeWorkspaceId && workspaces.some((ws) => ws.id === activeWorkspaceId)) {
+      return;
+    }
+    setActiveWorkspaceId(workspaces[0]?.id ?? null);
+  }, [activeWorkspaceId, workspaces]);
+
+  useEffect(() => {
+    if (!activeWorkspaceId) {
+      return;
+    }
+    const currentWorkspace = workspaces.find((ws) => ws.id === activeWorkspaceId);
+    if (!currentWorkspace) {
+      return;
+    }
+    setCollectionNodes(currentWorkspace.collectionNodes);
+    setEnvironments(currentWorkspace.environments);
+    setActiveEnvironmentId(
+      currentWorkspace.activeEnvironmentId ?? currentWorkspace.environments[0]?.id ?? null
+    );
+  }, [activeWorkspaceId]);
+
+  useEffect(() => {
+    if (!activeWorkspaceId) {
+      return;
+    }
+    setWorkspaces((prev) =>
+      prev.map((ws) => (ws.id === activeWorkspaceId ? { ...ws, collectionNodes } : ws))
+    );
+  }, [collectionNodes, activeWorkspaceId]);
+
+  useEffect(() => {
+    if (!activeWorkspaceId) {
+      return;
+    }
+    setWorkspaces((prev) =>
+      prev.map((ws) => (ws.id === activeWorkspaceId ? { ...ws, environments } : ws))
+    );
+  }, [environments, activeWorkspaceId]);
+
+  useEffect(() => {
+    if (!activeWorkspaceId) {
+      return;
+    }
+    setWorkspaces((prev) =>
+      prev.map((ws) => (ws.id === activeWorkspaceId ? { ...ws, activeEnvironmentId } : ws))
+    );
+  }, [activeEnvironmentId, activeWorkspaceId]);
 
   useEffect(() => {
     if (activeEnvironmentId && !environments.some((env) => env.id === activeEnvironmentId)) {
@@ -1007,6 +1137,31 @@ function App() {
       return [emptyRow()];
     }
     return list.filter((_, idx) => idx !== index);
+  };
+
+  const handleWorkspaceChange = (id: string | null) => {
+    setActiveWorkspaceId(id);
+  };
+
+  const handleWorkspaceAdd = () => {
+    const next = createWorkspace();
+    setWorkspaces((prev) => [...prev, next]);
+    setActiveWorkspaceId(next.id);
+  };
+
+  const handleWorkspaceRename = (id: string, name: string) => {
+    setWorkspaces((prev) => prev.map((ws) => (ws.id === id ? { ...ws, name } : ws)));
+  };
+
+  const handleWorkspaceDelete = (id: string) => {
+    setWorkspaces((prev) => {
+      if (prev.length <= 1) {
+        return prev;
+      }
+      const next = prev.filter((ws) => ws.id !== id);
+      setActiveWorkspaceId((current) => (current === id ? next[0]?.id ?? null : current));
+      return next;
+    });
   };
 
   const handleEnvironmentChange = (id: string | null) => {
@@ -1582,6 +1737,12 @@ function App() {
         history={history}
         currentUrl={url}
         currentMethod={method}
+        workspaces={workspaces}
+        activeWorkspaceId={activeWorkspaceId}
+        onWorkspaceChange={handleWorkspaceChange}
+        onWorkspaceAdd={handleWorkspaceAdd}
+        onWorkspaceRename={handleWorkspaceRename}
+        onWorkspaceDelete={handleWorkspaceDelete}
         collectionNodes={collectionNodes}
         setCollectionNodes={setCollectionNodes}
         buildRequestData={buildRequestData}

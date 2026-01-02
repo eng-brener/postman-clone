@@ -10,6 +10,19 @@ export type Environment = {
   variables: KeyValue[];
 };
 
+export type WorkspaceSettings = {
+  description?: string;
+};
+
+export type Workspace = {
+  id: string;
+  name: string;
+  collectionNodes: CollectionNode[];
+  environments: Environment[];
+  activeEnvironmentId: string | null;
+  settings: WorkspaceSettings;
+};
+
 export type BodyType = "none" | "form-data" | "x-www-form-urlencoded" | "raw" | "binary";
 
 export type RawType = "text" | "javascript" | "json" | "html" | "xml";

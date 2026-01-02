@@ -20,6 +20,7 @@ import {
   KeyValue,
   RequestData,
   RequestType,
+  Workspace,
 } from "../../types";
 import { REQUEST_TYPE_OPTIONS, getDefaultMethodForType, getRequestTypeLabel } from "../../lib/request";
 import { type ThemeOption } from "../../lib/theme";
@@ -33,6 +34,12 @@ interface SidebarProps {
   history: HistoryItem[];
   currentUrl: string;
   currentMethod: string;
+  workspaces: Workspace[];
+  activeWorkspaceId: string | null;
+  onWorkspaceChange: (id: string | null) => void;
+  onWorkspaceAdd: () => void;
+  onWorkspaceRename: (id: string, name: string) => void;
+  onWorkspaceDelete: (id: string) => void;
   collectionNodes: CollectionNode[];
   setCollectionNodes: Dispatch<SetStateAction<CollectionNode[]>>;
   buildRequestData: (method: string, url: string, requestType?: RequestType) => RequestData;
@@ -109,6 +116,12 @@ export const Sidebar = ({
   history,
   currentUrl,
   currentMethod,
+  workspaces,
+  activeWorkspaceId,
+  onWorkspaceChange,
+  onWorkspaceAdd,
+  onWorkspaceRename,
+  onWorkspaceDelete,
   collectionNodes,
   setCollectionNodes,
   buildRequestData,
@@ -208,9 +221,11 @@ export const Sidebar = ({
   const [dropInvalidId, setDropInvalidId] = useState<string | null>(null);
   const [historyOpen, setHistoryOpen] = useState(true);
   const [settingsModalOpen, setSettingsModalOpen] = useState(false);
+  const [workspaceModalOpen, setWorkspaceModalOpen] = useState(false);
   const [envModalOpen, setEnvModalOpen] = useState(false);
   const renameInputRef = useRef<HTMLInputElement | null>(null);
   const renameFocusRef = useRef(false);
+  const activeWorkspace = workspaces.find((ws) => ws.id === activeWorkspaceId) ?? null;
   const activeEnvironment = environments.find((env) => env.id === activeEnvironmentId) ?? null;
 
   useEffect(() => {
@@ -1005,6 +1020,31 @@ export const Sidebar = ({
           <Layers className="logo-icon" size={20} />
           <span>{appName}</span>
         </div>
+        <div className="sidebar-workspace">
+          <select
+            className="env-select"
+            value={activeWorkspaceId ?? workspaces[0]?.id ?? ""}
+            onChange={(event) => {
+              const nextValue = event.target.value;
+              if (nextValue === "__settings__") {
+                setWorkspaceModalOpen(true);
+                return;
+              }
+              onWorkspaceChange(nextValue || null);
+            }}
+            aria-label={t("app.workspaceActiveLabel")}
+          >
+            {workspaces.map((workspace) => (
+              <option key={workspace.id} value={workspace.id}>
+                {workspace.name || t("app.workspace")}
+              </option>
+            ))}
+            <option value="__separator__" disabled>
+              ──────────
+            </option>
+            <option value="__settings__">{t("app.workspacesManage")}</option>
+          </select>
+        </div>
         <div className="sidebar-env">
           <select
             className="env-select"
@@ -1398,6 +1438,74 @@ export const Sidebar = ({
         theme={theme}
         onThemeChange={onThemeChange}
       />
+      {workspaceModalOpen && (
+        <div className="modal-overlay" onClick={() => setWorkspaceModalOpen(false)}>
+          <div className="modal env-modal workspace-modal" onClick={(event) => event.stopPropagation()}>
+            <div className="modal-header">{t("app.workspacesTitle")}</div>
+            <div className="env-modal-body">
+              <div className="env-modal-sidebar">
+                <div className="env-sidebar-header">
+                  <span>{t("app.workspacesTitle")}</span>
+                  <button type="button" className="env-button" onClick={onWorkspaceAdd}>
+                    {t("app.workspaceNew")}
+                  </button>
+                </div>
+                <div className="env-list">
+                  {workspaces.map((workspace) => (
+                    <button
+                      key={workspace.id}
+                      type="button"
+                      className={`env-list-item ${activeWorkspaceId === workspace.id ? "active" : ""}`}
+                      onClick={() => onWorkspaceChange(workspace.id)}
+                    >
+                      <span className="env-list-name">{workspace.name || t("app.workspace")}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div className="env-modal-main">
+                {activeWorkspace ? (
+                  <>
+                    <div className="env-main-header">
+                      <div className="env-name-field">
+                        <label className="modal-label" htmlFor="workspace-name-input">
+                          {t("app.nameLabel")}
+                        </label>
+                        <input
+                          id="workspace-name-input"
+                          className="modal-input"
+                          value={activeWorkspace.name}
+                          onChange={(event) => onWorkspaceRename(activeWorkspace.id, event.target.value)}
+                        />
+                      </div>
+                      <div className="env-main-actions">
+                        <button
+                          type="button"
+                          className="env-button danger"
+                          onClick={() => onWorkspaceDelete(activeWorkspace.id)}
+                          disabled={workspaces.length <= 1}
+                        >
+                          {t("app.workspaceDelete")}
+                        </button>
+                      </div>
+                    </div>
+                    <div className="modal-text">{t("app.workspaceSubtitle")}</div>
+                  </>
+                ) : (
+                  <div className="empty-state env-empty-state">
+                    {t("app.workspaceEmptyState")}
+                  </div>
+                )}
+              </div>
+            </div>
+            <div className="modal-actions">
+              <button type="button" className="modal-button ghost" onClick={() => setWorkspaceModalOpen(false)}>
+                {t("app.close")}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       {envModalOpen && (
         <div className="modal-overlay" onClick={() => setEnvModalOpen(false)}>
           <div className="modal env-modal" onClick={(event) => event.stopPropagation()}>
