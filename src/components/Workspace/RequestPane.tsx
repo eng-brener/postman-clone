@@ -1,6 +1,6 @@
 import Editor from "@monaco-editor/react";
 import { KeyValueEditor } from "../Editors/KeyValueEditor";
-import { BodyType, RawType, KeyValue, RequestSettings, AuthType, AuthData } from "../../types";
+import { AuthData, AuthDataType, AuthType, BodyType, KeyValue, RawType, RequestSettings } from "../../types";
 
 interface RequestPaneProps {
   activeTab: string;
@@ -18,7 +18,7 @@ interface RequestPaneProps {
   authType: AuthType;
   onAuthTypeChange: (type: AuthType) => void;
   authData: AuthData;
-  onAuthDataChange: (type: AuthType, field: string, val: string) => void;
+  onAuthDataChange: (type: AuthDataType, field: string, val: string) => void;
 
   bodyType: BodyType;
   onBodyTypeChange: (type: BodyType) => void;

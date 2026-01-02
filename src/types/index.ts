@@ -22,6 +22,8 @@ export type AuthData = {
   basic: { username: string; password: string };
 };
 
+export type AuthDataType = Exclude<AuthType, "none">;
+
 export type HistoryItem = {
   id: string;
   method: string;

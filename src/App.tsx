@@ -9,7 +9,7 @@ import { RequestPane } from "./components/Workspace/RequestPane";
 import { ResponsePane } from "./components/Workspace/ResponsePane";
 
 import { useKeyValueList } from "./hooks/useKeyValueList";
-import { BodyType, HistoryItem, KeyValue, RawType, RequestSettings, AuthType, AuthData } from "./types";
+import { AuthData, AuthDataType, AuthType, BodyType, HistoryItem, KeyValue, RawType, RequestSettings } from "./types";
 
 const emptyRow = (): KeyValue => ({ key: "", value: "", enabled: true });
 const cloneKeyValues = (items: KeyValue[]) => items.map((item) => ({ ...item }));
@@ -239,27 +239,25 @@ function App() {
     updateActiveTab((tab) => ({ ...tab, authType: next }));
   };
 
-  const handleAuthDataChange = (type: AuthType, field: string, val: string) => {
+  const handleAuthDataChange = (type: AuthDataType, field: string, val: string) => {
+    const key = type === "api-key" ? "apiKey" : type;
     setAuthData((prev) => ({
       ...prev,
-      [type === "api-key" ? "apiKey" : type]: {
-        ...prev[type === "api-key" ? "apiKey" : (type as "bearer" | "basic")],
+      [key]: {
+        ...prev[key],
         [field]: val,
       },
     }));
-    updateActiveTab((tab) => {
-      const key = type === "api-key" ? "apiKey" : type;
-      return {
-        ...tab,
-        authData: {
-          ...tab.authData,
-          [key]: {
-            ...tab.authData[key],
-            [field]: val,
-          },
+    updateActiveTab((tab) => ({
+      ...tab,
+      authData: {
+        ...tab.authData,
+        [key]: {
+          ...tab.authData[key],
+          [field]: val,
         },
-      };
-    });
+      },
+    }));
   };
 
   const handleParamsChange = (idx: number, field: keyof KeyValue, val: string | boolean) => {
