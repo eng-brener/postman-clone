@@ -1,4 +1,4 @@
-import { ChevronDown, ChevronRight, Folder, FolderOpen, Layers, Pin, Play, Settings } from "lucide-react";
+import { ChevronDown, ChevronRight, Folder, FolderOpen, Layers, Settings } from "lucide-react";
 import {
   type FormEvent,
   type DragEvent,
@@ -21,6 +21,10 @@ import {
   RequestData,
   RequestType,
 } from "../../types";
+import { REQUEST_TYPE_OPTIONS, getDefaultMethodForType, getRequestTypeLabel } from "../../lib/request";
+import { type ThemeOption } from "../../lib/theme";
+import { SidebarHistory } from "./SidebarHistory";
+import { SidebarSettingsModal } from "./SidebarSettingsModal";
 
 interface SidebarProps {
   appName: string;
@@ -43,51 +47,14 @@ interface SidebarProps {
   onEnvironmentDelete: (id: string) => void;
   onEnvironmentVarChange: (id: string, idx: number, field: keyof KeyValue, val: string | boolean) => void;
   onEnvironmentVarRemove: (id: string, idx: number) => void;
-  theme: "dark" | "light" | "dracula";
-  onThemeChange: (theme: "dark" | "light" | "dracula") => void;
+  theme: ThemeOption;
+  onThemeChange: (theme: ThemeOption) => void;
 }
 
 const MethodBadge = ({ method }: { method: string }) => {
   return <span className={`method-badge method-${method}`}>{method}</span>;
 };
 
-const REQUEST_TYPE_OPTIONS: { value: RequestType; label: string }[] = [
-  { value: "http", label: "HTTP" },
-  { value: "grpc", label: "gRPC" },
-  { value: "websocket", label: "WebSocket" },
-  { value: "socketio", label: "Socket.IO" },
-  { value: "graphql", label: "GraphQL" },
-  { value: "mqtt", label: "MQTT" },
-  { value: "ia", label: "IA" },
-  { value: "mcp", label: "MCP" },
-];
-
-const getDefaultMethodForType = (requestType: RequestType) => {
-  switch (requestType) {
-    case "grpc":
-      return "GRPC";
-    case "websocket":
-      return "WS";
-    case "socketio":
-      return "SOCKETIO";
-    case "graphql":
-      return "GRAPHQL";
-    case "mqtt":
-      return "MQTT";
-    case "ia":
-      return "IA";
-    case "mcp":
-      return "MCP";
-    case "http":
-    default:
-      return "GET";
-  }
-};
-
-const getRequestTypeLabel = (requestType: RequestType) => {
-  const match = REQUEST_TYPE_OPTIONS.find((option) => option.value === requestType);
-  return match ? match.label : "Request";
-};
 
 const SidebarItem = ({
   active,
@@ -238,11 +205,8 @@ export const Sidebar = ({
   const [dropTargetId, setDropTargetId] = useState<string | null>(null);
   const [dropInvalidId, setDropInvalidId] = useState<string | null>(null);
   const [historyOpen, setHistoryOpen] = useState(true);
-  const pinnedHistory = useMemo(() => history.filter((item) => item.pinned), [history]);
-  const recentHistory = useMemo(() => history.filter((item) => !item.pinned), [history]);
   const [settingsModalOpen, setSettingsModalOpen] = useState(false);
   const [envModalOpen, setEnvModalOpen] = useState(false);
-  const [settingsTab, setSettingsTab] = useState<"general" | "about">("general");
   const renameInputRef = useRef<HTMLInputElement | null>(null);
   const renameFocusRef = useRef(false);
   const activeEnvironment = environments.find((env) => env.id === activeEnvironmentId) ?? null;
@@ -1115,96 +1079,14 @@ export const Sidebar = ({
           })()}
         </div>
 
-        <div className="menu-label row">
-          <span>History</span>
-          <button
-            type="button"
-            className="menu-action"
-            onClick={() => setHistoryOpen((prev) => !prev)}
-            aria-label={historyOpen ? "Collapse history" : "Expand history"}
-          >
-            {historyOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-          </button>
-        </div>
-        {historyOpen && (
-          <>
-            {history.length === 0 && (
-              <div style={{ padding: "0 12px", fontSize: "0.8rem", color: "var(--text-dim)" }}>
-                No history yet.
-              </div>
-            )}
-            {pinnedHistory.map((h) => (
-              <div key={h.id} className="history-item">
-                <button
-                  className="history-main"
-                  onClick={() => onSelectHistory(h.method, h.url)}
-                >
-                  <MethodBadge method={h.method} />
-                  <span className="history-label">{h.url}</span>
-                </button>
-                <div className="history-actions">
-                  <button
-                    type="button"
-                    className="history-action"
-                    title="Run request"
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      onHistoryRerun(h);
-                    }}
-                  >
-                    <Play size={12} />
-                  </button>
-                  <button
-                    type="button"
-                    className={`history-action ${h.pinned ? "active" : ""}`}
-                    title={h.pinned ? "Unpin" : "Pin"}
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      onHistoryPinToggle(h.id);
-                    }}
-                  >
-                    <Pin size={12} />
-                  </button>
-                </div>
-              </div>
-            ))}
-            {recentHistory.map((h) => (
-              <div key={h.id} className="history-item">
-                <button
-                  className="history-main"
-                  onClick={() => onSelectHistory(h.method, h.url)}
-                >
-                  <MethodBadge method={h.method} />
-                  <span className="history-label">{h.url}</span>
-                </button>
-                <div className="history-actions">
-                  <button
-                    type="button"
-                    className="history-action"
-                    title="Run request"
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      onHistoryRerun(h);
-                    }}
-                  >
-                    <Play size={12} />
-                  </button>
-                  <button
-                    type="button"
-                    className={`history-action ${h.pinned ? "active" : ""}`}
-                    title={h.pinned ? "Unpin" : "Pin"}
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      onHistoryPinToggle(h.id);
-                    }}
-                  >
-                    <Pin size={12} />
-                  </button>
-                </div>
-              </div>
-            ))}
-          </>
-        )}
+        <SidebarHistory
+          history={history}
+          historyOpen={historyOpen}
+          onToggle={() => setHistoryOpen((prev) => !prev)}
+          onSelect={onSelectHistory}
+          onPinToggle={onHistoryPinToggle}
+          onRerun={onHistoryRerun}
+        />
       </div>
 
       <div className="sidebar-header" style={{ borderTop: '1px solid var(--border-subtle)', marginTop: 'auto' }}>
@@ -1488,65 +1370,13 @@ export const Sidebar = ({
           </div>
         </div>
       )}
-      {settingsModalOpen && (
-        <div className="modal-overlay" onClick={() => setSettingsModalOpen(false)}>
-          <div className="modal settings-modal" onClick={(event) => event.stopPropagation()}>
-            <div className="modal-header">Settings</div>
-            <div className="settings-tabs">
-              <button
-                type="button"
-                className={`settings-tab ${settingsTab === "general" ? "active" : ""}`}
-                onClick={() => setSettingsTab("general")}
-              >
-                General
-              </button>
-              <button
-                type="button"
-                className={`settings-tab ${settingsTab === "about" ? "active" : ""}`}
-                onClick={() => setSettingsTab("about")}
-              >
-                About
-              </button>
-            </div>
-            <div className="settings-content">
-              {settingsTab === "general" && (
-                <div className="settings-panel">
-                  <div className="settings-title">General</div>
-                  <div className="settings-text">Configure app defaults and behavior.</div>
-                  <div className="settings-row">
-                    <div className="settings-meta">
-                      <div className="settings-label">Theme</div>
-                      <div className="settings-desc">Choose your preferred appearance.</div>
-                    </div>
-                    <select
-                      className="settings-select"
-                      value={theme}
-                      onChange={(event) => onThemeChange(event.target.value as "dark" | "light" | "dracula")}
-                    >
-                      <option value="dark">Dark (Current)</option>
-                      <option value="light">Light</option>
-                      <option value="dracula">Dracula</option>
-                    </select>
-                  </div>
-                </div>
-              )}
-              {settingsTab === "about" && (
-                <div className="settings-panel">
-                  <div className="settings-title">About</div>
-                  <div className="settings-text">
-                    Postman Clone v{appVersion || "0.0.0"} — built with Tauri + React.
-                  </div>
-                </div>
-              )}
-            </div>
-            <div className="modal-actions">
-              <button type="button" className="modal-button ghost" onClick={() => setSettingsModalOpen(false)}>
-                Close
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <SidebarSettingsModal
+        open={settingsModalOpen}
+        onClose={() => setSettingsModalOpen(false)}
+        appVersion={appVersion}
+        theme={theme}
+        onThemeChange={onThemeChange}
+      />
       {envModalOpen && (
         <div className="modal-overlay" onClick={() => setEnvModalOpen(false)}>
           <div className="modal env-modal" onClick={(event) => event.stopPropagation()}>

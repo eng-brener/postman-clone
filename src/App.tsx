@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { getName, getVersion } from "@tauri-apps/api/app";
 import { fetch as tauriFetch } from "@tauri-apps/plugin-http";
+import "./styles/theme.css";
 import "./App.css";
 
 import { Sidebar } from "./components/Sidebar/Sidebar";
@@ -24,6 +25,8 @@ import {
   RequestSettings,
   RequestType,
 } from "./types";
+import { REQUEST_TYPE_OPTIONS, getDefaultMethodForType, getRequestTypeLabel } from "./lib/request";
+import { THEME_STORAGE_KEY, type ThemeOption } from "./lib/theme";
 
 const emptyRow = (): KeyValue => ({ key: "", value: "", enabled: true });
 const cloneKeyValues = (items: KeyValue[]) => items.map((item) => ({ ...item }));
@@ -48,60 +51,7 @@ const addEmptyRow = (items: KeyValue[]) => {
   return [...items, emptyRow()];
 };
 const HISTORY_LIMIT = 10;
-const THEME_STORAGE_KEY = "app-theme";
-type ThemeOption = "dark" | "light" | "dracula";
-const REQUEST_TYPE_OPTIONS: RequestType[] = [
-  "http",
-  "grpc",
-  "websocket",
-  "socketio",
-  "graphql",
-  "mqtt",
-  "ia",
-  "mcp",
-];
-const getDefaultMethodForType = (requestType: RequestType) => {
-  switch (requestType) {
-    case "grpc":
-      return "GRPC";
-    case "websocket":
-      return "WS";
-    case "socketio":
-      return "SOCKETIO";
-    case "graphql":
-      return "GRAPHQL";
-    case "mqtt":
-      return "MQTT";
-    case "ia":
-      return "IA";
-    case "mcp":
-      return "MCP";
-    case "http":
-    default:
-      return "GET";
-  }
-};
-const getRequestTypeLabel = (requestType: RequestType) => {
-  switch (requestType) {
-    case "grpc":
-      return "gRPC";
-    case "websocket":
-      return "WebSocket";
-    case "socketio":
-      return "Socket.IO";
-    case "graphql":
-      return "GraphQL";
-    case "mqtt":
-      return "MQTT";
-    case "ia":
-      return "IA";
-    case "mcp":
-      return "MCP";
-    case "http":
-    default:
-      return "HTTP";
-  }
-};
+const REQUEST_TYPE_VALUES = REQUEST_TYPE_OPTIONS.map((option) => option.value);
 const base64EncodeUtf8 = (value: string) => {
   return btoa(unescape(encodeURIComponent(value)));
 };
@@ -461,7 +411,7 @@ function App() {
 
   const normalizeRequestData = (value: unknown): RequestData => {
     const rawRequestType = (value as Partial<RequestData> | null)?.requestType;
-    const requestType: RequestType = REQUEST_TYPE_OPTIONS.includes(rawRequestType as RequestType)
+    const requestType: RequestType = REQUEST_TYPE_VALUES.includes(rawRequestType as RequestType)
       ? (rawRequestType as RequestType)
       : "http";
     const fallback = buildRequestData(getDefaultMethodForType(requestType), "https://example.com", requestType);
