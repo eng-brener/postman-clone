@@ -27,6 +27,82 @@ import {
 
 const emptyRow = (): KeyValue => ({ key: "", value: "", enabled: true });
 const cloneKeyValues = (items: KeyValue[]) => items.map((item) => ({ ...item }));
+const ensureTrailingEmptyRow = (items: KeyValue[]) => {
+  if (items.length === 0) {
+    return [emptyRow()];
+  }
+  const last = items[items.length - 1];
+  if (last.key.trim() === "" && last.value.trim() === "") {
+    return items;
+  }
+  return [...items, emptyRow()];
+};
+const addEmptyRow = (items: KeyValue[]) => {
+  if (items.length === 0) {
+    return [emptyRow()];
+  }
+  const last = items[items.length - 1];
+  if (last.key.trim() === "" && last.value.trim() === "") {
+    return items;
+  }
+  return [...items, emptyRow()];
+};
+const HISTORY_LIMIT = 10;
+const REQUEST_TYPE_OPTIONS: RequestType[] = [
+  "http",
+  "grpc",
+  "websocket",
+  "socketio",
+  "graphql",
+  "mqtt",
+  "ia",
+  "mcp",
+];
+const getDefaultMethodForType = (requestType: RequestType) => {
+  switch (requestType) {
+    case "grpc":
+      return "GRPC";
+    case "websocket":
+      return "WS";
+    case "socketio":
+      return "SOCKETIO";
+    case "graphql":
+      return "GRAPHQL";
+    case "mqtt":
+      return "MQTT";
+    case "ia":
+      return "IA";
+    case "mcp":
+      return "MCP";
+    case "http":
+    default:
+      return "GET";
+  }
+};
+const getRequestTypeLabel = (requestType: RequestType) => {
+  switch (requestType) {
+    case "grpc":
+      return "gRPC";
+    case "websocket":
+      return "WebSocket";
+    case "socketio":
+      return "Socket.IO";
+    case "graphql":
+      return "GraphQL";
+    case "mqtt":
+      return "MQTT";
+    case "ia":
+      return "IA";
+    case "mcp":
+      return "MCP";
+    case "http":
+    default:
+      return "HTTP";
+  }
+};
+const base64EncodeUtf8 = (value: string) => {
+  return btoa(unescape(encodeURIComponent(value)));
+};
 const createCookieId = () => `cookie-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 const normalizeDomain = (domain: string) => domain.trim().toLowerCase().replace(/^\./, "");
 const isExpiredCookie = (cookie: CookieEntry, now = Date.now()) =>
@@ -325,6 +401,7 @@ function App() {
 }`;
   const defaultHeadersList: KeyValue[] = [
     { key: "User-Agent", value: "PostmanClone/1.0", enabled: true },
+    emptyRow(),
   ];
 
   const cloneAuthData = (source: AuthData): AuthData => ({
@@ -376,13 +453,16 @@ function App() {
         };
       })
       .filter((item): item is KeyValue => Boolean(item));
-    return items.length > 0 ? items : cloneKeyValues(fallback);
+    const normalized = items.length > 0 ? items : cloneKeyValues(fallback);
+    return ensureTrailingEmptyRow(normalized);
   };
 
   const normalizeRequestData = (value: unknown): RequestData => {
     const rawRequestType = (value as Partial<RequestData> | null)?.requestType;
-    const requestType: RequestType = rawRequestType === "grpc" ? "grpc" : "http";
-    const fallback = buildRequestData(requestType === "grpc" ? "GRPC" : "GET", "https://example.com", requestType);
+    const requestType: RequestType = REQUEST_TYPE_OPTIONS.includes(rawRequestType as RequestType)
+      ? (rawRequestType as RequestType)
+      : "http";
+    const fallback = buildRequestData(getDefaultMethodForType(requestType), "https://example.com", requestType);
     if (!value || typeof value !== "object") {
       return fallback;
     }
@@ -396,7 +476,7 @@ function App() {
       url,
       params: normalizeKeyValueList(record.params, fallback.params),
       headers: normalizeKeyValueList(record.headers, fallback.headers),
-      authType: record.authType ?? fallback.authType,
+        authType: record.authType ?? fallback.authType,
       authData: record.authData ? cloneAuthData(record.authData as AuthData) : cloneAuthData(fallback.authData),
       bodyType: record.bodyType ?? fallback.bodyType,
       rawType: record.rawType ?? fallback.rawType,
@@ -676,10 +756,19 @@ function App() {
   }, [activeEnvironment]);
 
   // Derived State
+  const resolvedUrl = useMemo(() => resolveTemplate(url, environmentValues), [url, environmentValues]);
+  const trimmedResolvedUrl = useMemo(() => resolvedUrl.trim(), [resolvedUrl]);
+  const urlValidation = useMemo(() => {
+    try {
+      new URL(trimmedResolvedUrl);
+      return { valid: true };
+    } catch {
+      return { valid: false };
+    }
+  }, [trimmedResolvedUrl]);
   const requestUrl = useMemo(() => {
     try {
-      const resolvedUrl = resolveTemplate(url, environmentValues);
-      const base = new URL(resolvedUrl);
+      const base = new URL(trimmedResolvedUrl);
       base.search = "";
       
       // Add Params
@@ -702,10 +791,12 @@ function App() {
       
       return base.toString();
     } catch {
-      const resolvedFallback = resolveTemplate(url, environmentValues);
+      const resolvedFallback = trimmedResolvedUrl;
       return resolvedFallback || url;
     }
-  }, [url, params, authType, authData, environmentValues]);
+  }, [trimmedResolvedUrl, url, params, authType, authData, environmentValues]);
+
+  const urlPreview = urlValidation.valid ? requestUrl : (trimmedResolvedUrl || url);
 
   const cookieContext = useMemo(() => {
     try {
@@ -870,12 +961,22 @@ function App() {
     } else if (authType === "basic" && authData.basic.username) {
       const username = resolveTemplate(authData.basic.username, environmentValues);
       const password = resolveTemplate(authData.basic.password, environmentValues);
-      const credentials = btoa(`${username}:${password}`);
+      const credentials = base64EncodeUtf8(`${username}:${password}`);
       result["Authorization"] = `Basic ${credentials}`;
     }
 
+    const bodyAllowed = !["GET", "HEAD"].includes(method);
+
+    if (bodyAllowed && bodyType === "form-data") {
+      Object.keys(result).forEach((key) => {
+        if (key.toLowerCase() === "content-type") {
+          delete result[key];
+        }
+      });
+    }
+
     // Add implicit content-type based on body type if not present
-    if (activeReqTab === "Body" && !Object.keys(result).some(k => k.toLowerCase() === 'content-type')) {
+    if (bodyAllowed && bodyType !== "none" && !Object.keys(result).some(k => k.toLowerCase() === 'content-type')) {
        if (bodyType === "raw") {
          const mimeMap: Record<RawType, string> = {
             json: "application/json",
@@ -891,7 +992,7 @@ function App() {
     }
     
     return result;
-  }, [headers, bodyType, rawType, activeReqTab, authType, authData, cookieJar, requestUrl, environmentValues]);
+  }, [headers, bodyType, rawType, authType, authData, cookieJar, requestUrl, environmentValues, method]);
 
   const updateActiveTab = (updater: (tab: RequestTab) => RequestTab) => {
     if (!activeTabId) {
@@ -1056,6 +1157,18 @@ function App() {
     syncUrlFromParams(nextParams);
   };
 
+  const handleParamsAdd = () => {
+    setParamsList((prev) => addEmptyRow(prev));
+    updateActiveTab((tab) => ({ ...tab, params: addEmptyRow(tab.params) }));
+  };
+
+  const handleParamsReplace = (nextItems: KeyValue[]) => {
+    const nextParams = addEmptyRow(nextItems);
+    setParamsList(nextParams);
+    updateActiveTab((tab) => ({ ...tab, params: nextParams }));
+    syncUrlFromParams(nextParams);
+  };
+
   const handleHeadersChange = (idx: number, field: keyof KeyValue, val: string | boolean) => {
     setHeaders(idx, field, val);
     updateActiveTab((tab) => ({ ...tab, headers: updateKeyValueList(tab.headers, idx, field, val) }));
@@ -1064,6 +1177,17 @@ function App() {
   const handleHeadersRemove = (idx: number) => {
     removeHeader(idx);
     updateActiveTab((tab) => ({ ...tab, headers: removeKeyValueItem(tab.headers, idx) }));
+  };
+
+  const handleHeadersAdd = () => {
+    setHeadersList((prev) => addEmptyRow(prev));
+    updateActiveTab((tab) => ({ ...tab, headers: addEmptyRow(tab.headers) }));
+  };
+
+  const handleHeadersReplace = (nextItems: KeyValue[]) => {
+    const nextHeaders = addEmptyRow(nextItems);
+    setHeadersList(nextHeaders);
+    updateActiveTab((tab) => ({ ...tab, headers: nextHeaders }));
   };
 
   const handleBodyTypeChange = (next: BodyType) => {
@@ -1094,6 +1218,12 @@ function App() {
     updateActiveTab((tab) => ({ ...tab, bodyFormData: removeKeyValueItem(tab.bodyFormData, idx) }));
   };
 
+  const handleBodyFormDataReplace = (nextItems: KeyValue[]) => {
+    const nextBody = addEmptyRow(nextItems);
+    setBodyFormDataList(nextBody);
+    updateActiveTab((tab) => ({ ...tab, bodyFormData: nextBody }));
+  };
+
   const handleBodyUrlEncodedChange = (idx: number, field: keyof KeyValue, val: string | boolean) => {
     setBodyUrlEncoded(idx, field, val);
     updateActiveTab((tab) => ({
@@ -1105,6 +1235,12 @@ function App() {
   const handleBodyUrlEncodedRemove = (idx: number) => {
     removeBodyUrlEncoded(idx);
     updateActiveTab((tab) => ({ ...tab, bodyUrlEncoded: removeKeyValueItem(tab.bodyUrlEncoded, idx) }));
+  };
+
+  const handleBodyUrlEncodedReplace = (nextItems: KeyValue[]) => {
+    const nextBody = addEmptyRow(nextItems);
+    setBodyUrlEncodedList(nextBody);
+    updateActiveTab((tab) => ({ ...tab, bodyUrlEncoded: nextBody }));
   };
 
   const loadTab = (tab: RequestTab) => {
@@ -1217,7 +1353,7 @@ function App() {
       const bodyAllowed = !["GET", "HEAD"].includes(method);
       let payload: BodyInit | undefined = undefined;
 
-      if (bodyAllowed && activeReqTab === "Body") {
+      if (bodyAllowed && bodyType !== "none") {
         if (bodyType === "raw") {
           payload = resolveTemplate(bodyJson, environmentValues);
         } else if (bodyType === "form-data") {
@@ -1251,16 +1387,19 @@ function App() {
         method,
         headers: activeHeaders,
         body: payload,
-        redirect: settings.followRedirects ? 'follow' : 'manual'
+        redirect: settings.followRedirects ? "follow" : "manual",
+        maxRedirections: settings.followRedirects ? undefined : 0,
+        danger: settings.verifySsl ? undefined : { acceptInvalidCerts: true, acceptInvalidHostnames: true },
       });
 
       const rawText = await response.text();
+      const responseBytes = new Blob([rawText]).size;
       const timeMs = Math.round(performance.now() - start);
       
       setResponseTime(timeMs);
       setResponseCode(response.status);
       setResponseStatus(`${response.status} ${response.statusText || ""}`.trim());
-      setResponseSize(rawText.length);
+      setResponseSize(responseBytes);
       setResponseRaw(rawText);
 
       // Extract Headers
@@ -1315,7 +1454,7 @@ function App() {
         responseCode: response.status,
         responseStatus: `${response.status} ${response.statusText || ""}`.trim(),
         responseTime: timeMs,
-        responseSize: rawText.length,
+        responseSize: responseBytes,
         responseRaw: rawText,
         responsePretty: formatted,
         responseHeaders: headersList,
@@ -1330,8 +1469,14 @@ function App() {
         url: requestUrl,
         status: response.status.toString(),
         timeMs,
+        pinned: false,
       };
-      setHistory((prev) => [historyItem, ...prev].slice(0, 10));
+      setHistory((prev) => {
+        const pinned = prev.filter((item) => item.pinned);
+        const unpinned = prev.filter((item) => !item.pinned);
+        const nextUnpinned = [historyItem, ...unpinned].slice(0, HISTORY_LIMIT);
+        return [...pinned, ...nextUnpinned];
+      });
 
     } catch (error: any) {
       const message = error.toString();
@@ -1354,6 +1499,23 @@ function App() {
       setIsSending(false);
     }
   };
+
+  useEffect(() => {
+    const handleKeydown = (event: KeyboardEvent) => {
+      const isEnter = event.key === "Enter";
+      if (!isEnter) {
+        return;
+      }
+      if (event.ctrlKey || event.metaKey) {
+        event.preventDefault();
+        if (!isSending) {
+          sendRequest();
+        }
+      }
+    };
+    window.addEventListener("keydown", handleKeydown);
+    return () => window.removeEventListener("keydown", handleKeydown);
+  }, [isSending, sendRequest]);
 
   const handleSelectRequest = (request: CollectionRequest) => {
     const existing = tabs.find((tab) => tab.collectionId === request.id);
@@ -1417,6 +1579,21 @@ function App() {
     handleUrlChange(u);
   };
 
+  const handleHistoryPinToggle = (id: string) => {
+    setHistory((prev) =>
+      prev.map((item) => (item.id === id ? { ...item, pinned: !item.pinned } : item))
+    );
+  };
+
+  const handleHistoryRerun = (item: HistoryItem) => {
+    handleSelectHistory(item.method, item.url);
+    setTimeout(() => {
+      if (!isSending) {
+        sendRequest();
+      }
+    }, 0);
+  };
+
   const hasActiveTab = tabs.length > 0 && activeTabId !== null && tabs.some((tab) => tab.id === activeTabId);
 
   return (
@@ -1432,6 +1609,8 @@ function App() {
         buildRequestData={buildRequestData}
         onSelectRequest={handleSelectRequest}
         onSelectHistory={handleSelectHistory}
+        onHistoryPinToggle={handleHistoryPinToggle}
+        onHistoryRerun={handleHistoryRerun}
         environments={environments}
         activeEnvironmentId={activeEnvironmentId}
         onEnvironmentChange={handleEnvironmentChange}
@@ -1482,14 +1661,20 @@ function App() {
               onUrlChange={handleUrlChange}
               onSend={sendRequest}
               environmentValues={environmentValues}
+              urlPreview={urlPreview}
+              urlIsValid={urlValidation.valid}
               activeRequestTab={activeReqTab}
               onRequestTabChange={setActiveReqTab}
               params={params}
               onParamsChange={handleParamsChange}
               onParamsRemove={handleParamsRemove}
+              onParamsAdd={handleParamsAdd}
+              onParamsReplace={handleParamsReplace}
               headers={headers}
               onHeadersChange={handleHeadersChange}
               onHeadersRemove={handleHeadersRemove}
+              onHeadersAdd={handleHeadersAdd}
+              onHeadersReplace={handleHeadersReplace}
               cookieContext={cookieContext ? { host: cookieContext.host, path: cookieContext.path } : null}
               cookies={visibleCookies}
               onCookieAdd={handleCookieAdd}
@@ -1508,9 +1693,11 @@ function App() {
               bodyFormData={bodyFormData}
               onBodyFormDataChange={handleBodyFormDataChange}
               onBodyFormDataRemove={handleBodyFormDataRemove}
+              onBodyFormDataReplace={handleBodyFormDataReplace}
               bodyUrlEncoded={bodyUrlEncoded}
               onBodyUrlEncodedChange={handleBodyUrlEncodedChange}
               onBodyUrlEncodedRemove={handleBodyUrlEncodedRemove}
+              onBodyUrlEncodedReplace={handleBodyUrlEncodedReplace}
               settings={settings}
               onSettingsChange={handleSettingsChange}
               activeResponseTab={activeResTab}
@@ -1524,9 +1711,11 @@ function App() {
               responseHeaders={responseHeaders}
               errorMessage={errorMessage}
               responseLanguage={responseLanguage}
+              followRedirects={settings.followRedirects}
+              onFollowRedirectsChange={(value) => handleSettingsChange("followRedirects", value)}
             />
           ) : (
-            <GrpcWorkspace />
+            <GrpcWorkspace requestTypeLabel={getRequestTypeLabel(requestType)} />
           )
         ) : (
           <div className="empty-workspace">

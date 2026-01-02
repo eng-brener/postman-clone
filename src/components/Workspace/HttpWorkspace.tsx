@@ -1,7 +1,9 @@
+import { ResizableBox } from "react-resizable";
 import { AuthData, AuthDataType, AuthType, BodyType, CookieEntry, KeyValue, RawType, RequestSettings } from "../../types";
 import { RequestPane } from "./RequestPane";
 import { ResponsePane } from "./ResponsePane";
 import { UrlBar } from "./UrlBar";
+import { useState, useEffect } from "react";
 
 interface HttpWorkspaceProps {
   method: string;
@@ -11,14 +13,20 @@ interface HttpWorkspaceProps {
   onUrlChange: (url: string) => void;
   onSend: () => void;
   environmentValues: Record<string, string>;
+  urlPreview: string;
+  urlIsValid: boolean;
   activeRequestTab: string;
   onRequestTabChange: (tab: string) => void;
   params: KeyValue[];
   onParamsChange: (idx: number, field: keyof KeyValue, val: string | boolean) => void;
   onParamsRemove: (index: number) => void;
+  onParamsAdd: () => void;
+  onParamsReplace: (items: KeyValue[]) => void;
   headers: KeyValue[];
   onHeadersChange: (idx: number, field: keyof KeyValue, val: string | boolean) => void;
   onHeadersRemove: (index: number) => void;
+  onHeadersAdd: () => void;
+  onHeadersReplace: (items: KeyValue[]) => void;
   cookieContext: { host: string; path: string } | null;
   cookies: CookieEntry[];
   onCookieAdd: () => void;
@@ -37,9 +45,11 @@ interface HttpWorkspaceProps {
   bodyFormData: KeyValue[];
   onBodyFormDataChange: (idx: number, field: keyof KeyValue, val: string | boolean) => void;
   onBodyFormDataRemove: (index: number) => void;
+  onBodyFormDataReplace: (items: KeyValue[]) => void;
   bodyUrlEncoded: KeyValue[];
   onBodyUrlEncodedChange: (idx: number, field: keyof KeyValue, val: string | boolean) => void;
   onBodyUrlEncodedRemove: (index: number) => void;
+  onBodyUrlEncodedReplace: (items: KeyValue[]) => void;
   settings: RequestSettings;
   onSettingsChange: (field: keyof RequestSettings, val: any) => void;
   activeResponseTab: string;
@@ -53,6 +63,8 @@ interface HttpWorkspaceProps {
   responseHeaders: [string, string][];
   errorMessage: string | null;
   responseLanguage: string;
+  followRedirects: boolean;
+  onFollowRedirectsChange: (value: boolean) => void;
 }
 
 export const HttpWorkspace = ({
@@ -63,14 +75,20 @@ export const HttpWorkspace = ({
   onUrlChange,
   onSend,
   environmentValues,
+  urlPreview,
+  urlIsValid,
   activeRequestTab,
   onRequestTabChange,
   params,
   onParamsChange,
   onParamsRemove,
+  onParamsAdd,
+  onParamsReplace,
   headers,
   onHeadersChange,
   onHeadersRemove,
+  onHeadersAdd,
+  onHeadersReplace,
   cookieContext,
   cookies,
   onCookieAdd,
@@ -89,9 +107,11 @@ export const HttpWorkspace = ({
   bodyFormData,
   onBodyFormDataChange,
   onBodyFormDataRemove,
+  onBodyFormDataReplace,
   bodyUrlEncoded,
   onBodyUrlEncodedChange,
   onBodyUrlEncodedRemove,
+  onBodyUrlEncodedReplace,
   settings,
   onSettingsChange,
   activeResponseTab,
@@ -105,67 +125,123 @@ export const HttpWorkspace = ({
   responseHeaders,
   errorMessage,
   responseLanguage,
-}: HttpWorkspaceProps) => (
-  <>
-    <UrlBar
-      method={method}
-      url={url}
-      isSending={isSending}
-      onMethodChange={onMethodChange}
-      onUrlChange={onUrlChange}
-      onSend={onSend}
-      environmentValues={environmentValues}
-    />
+  followRedirects,
+  onFollowRedirectsChange,
+}: HttpWorkspaceProps) => {
+  // Height state for the resizable pane
+  const [requestPaneHeight, setRequestPaneHeight] = useState(300);
 
-    <div className="workspace-grid">
-      <RequestPane
-        activeTab={activeRequestTab}
-        onTabChange={onRequestTabChange}
+  // Initial calculation to set a reasonable default height based on window size
+  useEffect(() => {
+    const handleResize = () => {
+       // Ideally use 40-50% of available height
+       const availableHeight = window.innerHeight - 130; // approx header + sidebar headers
+       setRequestPaneHeight(Math.max(200, availableHeight * 0.45));
+    };
+    
+    // Set initial
+    handleResize();
+
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  return (
+    <>
+      <UrlBar
+        method={method}
+        url={url}
+        isSending={isSending}
+        onMethodChange={onMethodChange}
+        onUrlChange={onUrlChange}
+        onSend={onSend}
         environmentValues={environmentValues}
-        params={params}
-        onParamsChange={onParamsChange}
-        onParamsRemove={onParamsRemove}
-        headers={headers}
-        onHeadersChange={onHeadersChange}
-        onHeadersRemove={onHeadersRemove}
-        cookieContext={cookieContext}
-        cookies={cookies}
-        onCookieAdd={onCookieAdd}
-        onCookieUpdate={onCookieUpdate}
-        onCookieRemove={onCookieRemove}
-        authType={authType}
-        onAuthTypeChange={onAuthTypeChange}
-        authData={authData}
-        onAuthDataChange={onAuthDataChange}
-        bodyType={bodyType}
-        onBodyTypeChange={onBodyTypeChange}
-        rawType={rawType}
-        onRawTypeChange={onRawTypeChange}
-        bodyJson={bodyJson}
-        onBodyJsonChange={onBodyJsonChange}
-        bodyFormData={bodyFormData}
-        onBodyFormDataChange={onBodyFormDataChange}
-        onBodyFormDataRemove={onBodyFormDataRemove}
-        bodyUrlEncoded={bodyUrlEncoded}
-        onBodyUrlEncodedChange={onBodyUrlEncodedChange}
-        onBodyUrlEncodedRemove={onBodyUrlEncodedRemove}
-        settings={settings}
-        onSettingsChange={onSettingsChange}
+        urlPreview={urlPreview}
+        urlIsValid={urlIsValid}
       />
 
-      <ResponsePane
-        activeTab={activeResponseTab}
-        onTabChange={onResponseTabChange}
-        responseCode={responseCode}
-        responseStatus={responseStatus}
-        responseTime={responseTime}
-        responseSize={responseSize}
-        responseRaw={responseRaw}
-        responsePretty={responsePretty}
-        responseHeaders={responseHeaders}
-        errorMessage={errorMessage}
-        responseLanguage={responseLanguage}
-      />
-    </div>
-  </>
-);
+      <div className="workspace-grid" style={{ overflow: 'hidden' }}>
+        <ResizableBox
+          height={requestPaneHeight}
+          width={Infinity}
+          axis="y"
+          resizeHandles={['s']}
+          minConstraints={[100, 100]}
+          maxConstraints={[Infinity, window.innerHeight - 200]}
+          onResize={(_, { size }) => {
+             setRequestPaneHeight(size.height);
+          }}
+          handle={(hProps, ref) => (
+             <div 
+                {...hProps} 
+                ref={ref} 
+                className="react-resizable-handle" 
+                title="Drag to resize"
+             />
+          )}
+        >
+          <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column' }}>
+            <RequestPane
+              activeTab={activeRequestTab}
+              onTabChange={onRequestTabChange}
+              environmentValues={environmentValues}
+              params={params}
+              onParamsChange={onParamsChange}
+              onParamsRemove={onParamsRemove}
+              onParamsAdd={onParamsAdd}
+              onParamsReplace={onParamsReplace}
+              headers={headers}
+              onHeadersChange={onHeadersChange}
+              onHeadersRemove={onHeadersRemove}
+              onHeadersAdd={onHeadersAdd}
+              onHeadersReplace={onHeadersReplace}
+              cookieContext={cookieContext}
+              cookies={cookies}
+              onCookieAdd={onCookieAdd}
+              onCookieUpdate={onCookieUpdate}
+              onCookieRemove={onCookieRemove}
+              authType={authType}
+              onAuthTypeChange={onAuthTypeChange}
+              authData={authData}
+              onAuthDataChange={onAuthDataChange}
+              bodyType={bodyType}
+              onBodyTypeChange={onBodyTypeChange}
+              rawType={rawType}
+              onRawTypeChange={onRawTypeChange}
+              bodyJson={bodyJson}
+              onBodyJsonChange={onBodyJsonChange}
+              bodyFormData={bodyFormData}
+              onBodyFormDataChange={onBodyFormDataChange}
+              onBodyFormDataRemove={onBodyFormDataRemove}
+              onBodyFormDataReplace={onBodyFormDataReplace}
+              bodyUrlEncoded={bodyUrlEncoded}
+              onBodyUrlEncodedChange={onBodyUrlEncodedChange}
+              onBodyUrlEncodedRemove={onBodyUrlEncodedRemove}
+              onBodyUrlEncodedReplace={onBodyUrlEncodedReplace}
+              settings={settings}
+              onSettingsChange={onSettingsChange}
+            />
+          </div>
+        </ResizableBox>
+
+        <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+          <ResponsePane
+            activeTab={activeResponseTab}
+            onTabChange={onResponseTabChange}
+            responseCode={responseCode}
+            responseStatus={responseStatus}
+            responseTime={responseTime}
+            responseSize={responseSize}
+            responseRaw={responseRaw}
+            responsePretty={responsePretty}
+            responseHeaders={responseHeaders}
+            errorMessage={errorMessage}
+            responseLanguage={responseLanguage}
+            followRedirects={followRedirects}
+            onFollowRedirectsChange={onFollowRedirectsChange}
+          />
+        </div>
+      </div>
+    </>
+  );
+};

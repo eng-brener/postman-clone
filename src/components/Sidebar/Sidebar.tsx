@@ -1,4 +1,4 @@
-import { ChevronDown, ChevronRight, Folder, FolderOpen, Layers, Settings } from "lucide-react";
+import { ChevronDown, ChevronRight, Folder, FolderOpen, Layers, Pin, Play, Settings } from "lucide-react";
 import {
   type FormEvent,
   type DragEvent,
@@ -33,6 +33,8 @@ interface SidebarProps {
   buildRequestData: (method: string, url: string, requestType?: RequestType) => RequestData;
   onSelectRequest: (request: CollectionRequest) => void;
   onSelectHistory: (method: string, url: string) => void;
+  onHistoryPinToggle: (id: string) => void;
+  onHistoryRerun: (item: HistoryItem) => void;
   environments: Environment[];
   activeEnvironmentId: string | null;
   onEnvironmentChange: (id: string | null) => void;
@@ -45,6 +47,44 @@ interface SidebarProps {
 
 const MethodBadge = ({ method }: { method: string }) => {
   return <span className={`method-badge method-${method}`}>{method}</span>;
+};
+
+const REQUEST_TYPE_OPTIONS: { value: RequestType; label: string }[] = [
+  { value: "http", label: "HTTP" },
+  { value: "grpc", label: "gRPC" },
+  { value: "websocket", label: "WebSocket" },
+  { value: "socketio", label: "Socket.IO" },
+  { value: "graphql", label: "GraphQL" },
+  { value: "mqtt", label: "MQTT" },
+  { value: "ia", label: "IA" },
+  { value: "mcp", label: "MCP" },
+];
+
+const getDefaultMethodForType = (requestType: RequestType) => {
+  switch (requestType) {
+    case "grpc":
+      return "GRPC";
+    case "websocket":
+      return "WS";
+    case "socketio":
+      return "SOCKETIO";
+    case "graphql":
+      return "GRAPHQL";
+    case "mqtt":
+      return "MQTT";
+    case "ia":
+      return "IA";
+    case "mcp":
+      return "MCP";
+    case "http":
+    default:
+      return "GET";
+  }
+};
+
+const getRequestTypeLabel = (requestType: RequestType) => {
+  const match = REQUEST_TYPE_OPTIONS.find((option) => option.value === requestType);
+  return match ? match.label : "Request";
 };
 
 const SidebarItem = ({
@@ -104,6 +144,8 @@ export const Sidebar = ({
   buildRequestData,
   onSelectRequest,
   onSelectHistory,
+  onHistoryPinToggle,
+  onHistoryRerun,
   environments,
   activeEnvironmentId,
   onEnvironmentChange,
@@ -192,6 +234,8 @@ export const Sidebar = ({
   const [dropTargetId, setDropTargetId] = useState<string | null>(null);
   const [dropInvalidId, setDropInvalidId] = useState<string | null>(null);
   const [historyOpen, setHistoryOpen] = useState(true);
+  const pinnedHistory = useMemo(() => history.filter((item) => item.pinned), [history]);
+  const recentHistory = useMemo(() => history.filter((item) => !item.pinned), [history]);
   const [settingsModalOpen, setSettingsModalOpen] = useState(false);
   const [envModalOpen, setEnvModalOpen] = useState(false);
   const [settingsTab, setSettingsTab] = useState<"general" | "about">("general");
@@ -768,7 +812,7 @@ export const Sidebar = ({
       type,
       name: type === "folder" ? "New Folder" : "New Request",
       requestType: "http",
-      method: "GET",
+      method: getDefaultMethodForType("http"),
       url: "https://example.com",
     });
     setContextMenu(null);
@@ -1085,13 +1129,75 @@ export const Sidebar = ({
                 No history yet.
               </div>
             )}
-            {history.map((h) => (
-              <SidebarItem
-                key={h.id}
-                method={h.method}
-                label={h.url}
-                onClick={() => onSelectHistory(h.method, h.url)}
-              />
+            {pinnedHistory.map((h) => (
+              <div key={h.id} className="history-item">
+                <button
+                  className="history-main"
+                  onClick={() => onSelectHistory(h.method, h.url)}
+                >
+                  <MethodBadge method={h.method} />
+                  <span className="history-label">{h.url}</span>
+                </button>
+                <div className="history-actions">
+                  <button
+                    type="button"
+                    className="history-action"
+                    title="Run request"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      onHistoryRerun(h);
+                    }}
+                  >
+                    <Play size={12} />
+                  </button>
+                  <button
+                    type="button"
+                    className={`history-action ${h.pinned ? "active" : ""}`}
+                    title={h.pinned ? "Unpin" : "Pin"}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      onHistoryPinToggle(h.id);
+                    }}
+                  >
+                    <Pin size={12} />
+                  </button>
+                </div>
+              </div>
+            ))}
+            {recentHistory.map((h) => (
+              <div key={h.id} className="history-item">
+                <button
+                  className="history-main"
+                  onClick={() => onSelectHistory(h.method, h.url)}
+                >
+                  <MethodBadge method={h.method} />
+                  <span className="history-label">{h.url}</span>
+                </button>
+                <div className="history-actions">
+                  <button
+                    type="button"
+                    className="history-action"
+                    title="Run request"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      onHistoryRerun(h);
+                    }}
+                  >
+                    <Play size={12} />
+                  </button>
+                  <button
+                    type="button"
+                    className={`history-action ${h.pinned ? "active" : ""}`}
+                    title={h.pinned ? "Unpin" : "Pin"}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      onHistoryPinToggle(h.id);
+                    }}
+                  >
+                    <Pin size={12} />
+                  </button>
+                </div>
+              </div>
             ))}
           </>
         )}
@@ -1246,14 +1352,16 @@ export const Sidebar = ({
                           return prev;
                         }
                         const nextType = event.target.value as RequestType;
-                        const nextMethod =
-                          nextType === "grpc" ? "GRPC" : prev.method === "GRPC" ? "GET" : prev.method;
+                        const nextMethod = nextType === "http" ? "GET" : getDefaultMethodForType(nextType);
                         return { ...prev, requestType: nextType, method: nextMethod };
                       })
                     }
                   >
-                    <option value="http">HTTP</option>
-                    <option value="grpc">gRPC</option>
+                    {REQUEST_TYPE_OPTIONS.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
                   </select>
                   {createModal.requestType === "http" ? (
                     <>
@@ -1289,7 +1397,22 @@ export const Sidebar = ({
                   />
                     </>
                   ) : (
-                    <div className="modal-text">gRPC request builder coming soon.</div>
+                    <>
+                      <label className="modal-label" htmlFor="create-url-input">
+                        URL
+                      </label>
+                      <input
+                        id="create-url-input"
+                        className="modal-input"
+                        value={createModal.url}
+                        onChange={(event) =>
+                          setCreateModal((prev) => (prev ? { ...prev, url: event.target.value } : prev))
+                        }
+                      />
+                      <div className="modal-text">
+                        {getRequestTypeLabel(createModal.requestType)} request builder coming soon.
+                      </div>
+                    </>
                   )}
                 </>
               )}

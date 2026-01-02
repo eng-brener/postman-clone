@@ -1,4 +1,5 @@
 import Editor from "@monaco-editor/react";
+import { useMemo, useState } from "react";
 import { EnvInput } from "../Editors/EnvInput";
 import { KeyValueEditor } from "../Editors/KeyValueEditor";
 import { AuthData, AuthDataType, AuthType, BodyType, CookieEntry, KeyValue, RawType, RequestSettings } from "../../types";
@@ -11,10 +12,14 @@ interface RequestPaneProps {
   params: KeyValue[];
   onParamsChange: (idx: number, field: keyof KeyValue, val: string | boolean) => void;
   onParamsRemove: (idx: number) => void;
+  onParamsAdd: () => void;
+  onParamsReplace: (items: KeyValue[]) => void;
 
   headers: KeyValue[];
   onHeadersChange: (idx: number, field: keyof KeyValue, val: string | boolean) => void;
   onHeadersRemove: (idx: number) => void;
+  onHeadersAdd: () => void;
+  onHeadersReplace: (items: KeyValue[]) => void;
 
   cookieContext: { host: string; path: string } | null;
   cookies: CookieEntry[];
@@ -40,10 +45,12 @@ interface RequestPaneProps {
   bodyFormData: KeyValue[];
   onBodyFormDataChange: (idx: number, field: keyof KeyValue, val: string | boolean) => void;
   onBodyFormDataRemove: (idx: number) => void;
+  onBodyFormDataReplace: (items: KeyValue[]) => void;
 
   bodyUrlEncoded: KeyValue[];
   onBodyUrlEncodedChange: (idx: number, field: keyof KeyValue, val: string | boolean) => void;
   onBodyUrlEncodedRemove: (idx: number) => void;
+  onBodyUrlEncodedReplace: (items: KeyValue[]) => void;
 
   settings: RequestSettings;
   onSettingsChange: (field: keyof RequestSettings, val: any) => void;
@@ -76,15 +83,15 @@ export const RequestPane = (props: RequestPaneProps) => {
   const { 
       activeTab, onTabChange, 
       environmentValues,
-      params, onParamsChange, onParamsRemove,
-      headers, onHeadersChange, onHeadersRemove,
+      params, onParamsChange, onParamsRemove, onParamsAdd, onParamsReplace,
+      headers, onHeadersChange, onHeadersRemove, onHeadersAdd, onHeadersReplace,
       cookieContext, cookies, onCookieAdd, onCookieUpdate, onCookieRemove,
       authType, onAuthTypeChange, authData, onAuthDataChange,
       bodyType, onBodyTypeChange,
       rawType, onRawTypeChange,
       bodyJson, onBodyJsonChange,
-      bodyFormData, onBodyFormDataChange, onBodyFormDataRemove,
-      bodyUrlEncoded, onBodyUrlEncodedChange, onBodyUrlEncodedRemove,
+      bodyFormData, onBodyFormDataChange, onBodyFormDataRemove, onBodyFormDataReplace,
+      bodyUrlEncoded, onBodyUrlEncodedChange, onBodyUrlEncodedRemove, onBodyUrlEncodedReplace,
       settings, onSettingsChange
   } = props;
 
@@ -124,6 +131,24 @@ export const RequestPane = (props: RequestPaneProps) => {
     return Number.isNaN(parsed) ? null : parsed;
   };
 
+  const [cookieDomainFilter, setCookieDomainFilter] = useState("");
+  const [cookiePathFilter, setCookiePathFilter] = useState("");
+
+  const filteredCookies = useMemo(() => {
+    const domainQuery = cookieDomainFilter.trim().toLowerCase();
+    const pathQuery = cookiePathFilter.trim().toLowerCase();
+    return cookies.filter((cookie) => {
+      const matchesDomain = !domainQuery || cookie.domain.toLowerCase().includes(domainQuery);
+      const matchesPath = !pathQuery || cookie.path.toLowerCase().includes(pathQuery);
+      return matchesDomain && matchesPath;
+    });
+  }, [cookies, cookieDomainFilter, cookiePathFilter]);
+
+  const hasInsecureSameSite = useMemo(
+    () => cookies.some((cookie) => cookie.sameSite === "None" && !cookie.secure),
+    [cookies]
+  );
+
   return (
     <div className="request-pane">
       <div className="pane-header">
@@ -140,32 +165,33 @@ export const RequestPane = (props: RequestPaneProps) => {
       </div>
       <div className="pane-content">
         {activeTab === "Params" && (
-          <KeyValueEditor
-            items={params}
-            onChange={onParamsChange}
-            onRemove={onParamsRemove}
-            environmentValues={environmentValues}
-          />
+          <>
+            <div className="kv-toolbar">
+              <div className="kv-toolbar-spacer" />
+              <button type="button" className="kv-add" onClick={onParamsAdd}>
+                + Add Param
+              </button>
+            </div>
+            <KeyValueEditor
+              items={params}
+              onChange={onParamsChange}
+              onRemove={onParamsRemove}
+              environmentValues={environmentValues}
+              onItemsReplace={onParamsReplace}
+              showBulkEdit
+            />
+          </>
         )}
 
         {activeTab === "Authorization" && (
-          <div style={{ display: "flex", height: "100%", border: "1px solid var(--border-subtle)", borderRadius: 6, overflow: "hidden" }}>
+          <div className="auth-container">
              {/* Left: Auth Type Selector */}
-             <div style={{ width: "200px", borderRight: "1px solid var(--border-subtle)", background: "var(--bg-sidebar)", display: "flex", flexDirection: "column" }}>
-               <div style={{ padding: "8px 12px", fontSize: "0.75rem", fontWeight: 600, color: "var(--text-muted)", textTransform: "uppercase" }}>Type</div>
+             <div className="auth-sidebar">
+               <div className="auth-sidebar-title">Auth Type</div>
                {AUTH_TYPES.map(at => (
                  <button
                    key={at.id}
-                   style={{
-                     textAlign: "left",
-                     padding: "8px 12px",
-                     background: authType === at.id ? "var(--bg-active)" : "transparent",
-                     color: authType === at.id ? "var(--text-main)" : "var(--text-muted)",
-                     border: "none",
-                     cursor: "pointer",
-                     fontSize: "0.85rem",
-                     borderLeft: authType === at.id ? "3px solid var(--primary)" : "3px solid transparent"
-                   }}
+                   className={`auth-type-btn ${authType === at.id ? "active" : ""}`}
                    onClick={() => onAuthTypeChange(at.id)}
                  >
                    {at.label}
@@ -174,21 +200,20 @@ export const RequestPane = (props: RequestPaneProps) => {
              </div>
 
              {/* Right: Auth Config */}
-             <div style={{ flex: 1, padding: 20, overflow: "auto", background: "var(--bg-app)" }}>
+             <div className="auth-content">
                 {authType === "none" && (
-                   <div className="empty-state" style={{ height: "100%" }}>
+                   <div className="empty-state">
                       <span style={{ opacity: 0.6 }}>This request does not use any authorization.</span>
                    </div>
                 )}
 
                 {authType === "api-key" && (
-                  <div className="kv-editor">
-                     <div style={{ marginBottom: 12 }}>
-                        <label style={{ display: "block", fontSize: "0.8rem", color: "var(--text-muted)", marginBottom: 6 }}>Key</label>
+                  <div style={{ maxWidth: 400, display: 'flex', flexDirection: 'column', gap: 16 }}>
+                     <div className="auth-field-group">
+                        <label className="auth-label">Key</label>
                         <EnvInput 
                           className="input-ghost"
                           overlayClassName="env-overlay-ghost"
-                          style={{ background: "var(--bg-input)" }}
                           placeholder="Key"
                           value={authData.apiKey.key}
                           environmentValues={environmentValues}
@@ -196,12 +221,11 @@ export const RequestPane = (props: RequestPaneProps) => {
                           onChange={(value) => onAuthDataChange("api-key", "key", value)}
                         />
                      </div>
-                     <div style={{ marginBottom: 12 }}>
-                        <label style={{ display: "block", fontSize: "0.8rem", color: "var(--text-muted)", marginBottom: 6 }}>Value</label>
+                     <div className="auth-field-group">
+                        <label className="auth-label">Value</label>
                         <EnvInput 
                           className="input-ghost"
                           overlayClassName="env-overlay-ghost"
-                          style={{ background: "var(--bg-input)" }} 
                           placeholder="Value"
                           value={authData.apiKey.value}
                           environmentValues={environmentValues}
@@ -209,11 +233,11 @@ export const RequestPane = (props: RequestPaneProps) => {
                           onChange={(value) => onAuthDataChange("api-key", "value", value)}
                         />
                      </div>
-                     <div>
-                        <label style={{ display: "block", fontSize: "0.8rem", color: "var(--text-muted)", marginBottom: 6 }}>Add to</label>
+                     <div className="auth-field-group">
+                        <label className="auth-label">Add to</label>
                         <select 
                           className="method-select" 
-                          style={{ width: "100%" }}
+                          style={{ width: "100%", height: 38, fontSize: '0.85rem' }}
                           value={authData.apiKey.addTo}
                           onChange={(e) => onAuthDataChange("api-key", "addTo", e.target.value)}
                         >
@@ -225,14 +249,14 @@ export const RequestPane = (props: RequestPaneProps) => {
                 )}
 
                 {authType === "bearer" && (
-                   <div className="kv-editor">
-                      <div>
-                        <label style={{ display: "block", fontSize: "0.8rem", color: "var(--text-muted)", marginBottom: 6 }}>Token</label>
+                   <div style={{ maxWidth: 400 }}>
+                      <div className="auth-field-group">
+                        <label className="auth-label">Token</label>
                         <EnvInput 
                           as="textarea"
                           className="code-editor"
                           overlayClassName="env-overlay-code"
-                          style={{ height: 150 }} 
+                          style={{ height: 150, minHeight: 100 }} 
                           placeholder="Bearer Token"
                           value={authData.bearer.token}
                           environmentValues={environmentValues}
@@ -244,13 +268,12 @@ export const RequestPane = (props: RequestPaneProps) => {
                 )}
 
                 {authType === "basic" && (
-                   <div className="kv-editor">
-                      <div style={{ marginBottom: 12 }}>
-                        <label style={{ display: "block", fontSize: "0.8rem", color: "var(--text-muted)", marginBottom: 6 }}>Username</label>
+                   <div style={{ maxWidth: 400 }}>
+                      <div className="auth-field-group">
+                        <label className="auth-label">Username</label>
                         <EnvInput 
                           className="input-ghost"
                           overlayClassName="env-overlay-ghost"
-                          style={{ background: "var(--bg-input)" }} 
                           placeholder="Username"
                           value={authData.basic.username}
                           environmentValues={environmentValues}
@@ -258,12 +281,11 @@ export const RequestPane = (props: RequestPaneProps) => {
                           onChange={(value) => onAuthDataChange("basic", "username", value)}
                         />
                      </div>
-                     <div>
-                        <label style={{ display: "block", fontSize: "0.8rem", color: "var(--text-muted)", marginBottom: 6 }}>Password</label>
+                     <div className="auth-field-group">
+                        <label className="auth-label">Password</label>
                         <EnvInput 
                           className="input-ghost"
                           overlayClassName="env-overlay-ghost"
-                          style={{ background: "var(--bg-input)" }} 
                           type="password"
                           placeholder="Password"
                           value={authData.basic.password}
@@ -279,12 +301,23 @@ export const RequestPane = (props: RequestPaneProps) => {
         )}
 
         {activeTab === "Headers" && (
-          <KeyValueEditor
-            items={headers}
-            onChange={onHeadersChange}
-            onRemove={onHeadersRemove}
-            environmentValues={environmentValues}
-          />
+          <>
+            <div className="kv-toolbar">
+              <div className="kv-toolbar-spacer" />
+              <button type="button" className="kv-add" onClick={onHeadersAdd}>
+                + Add Header
+              </button>
+            </div>
+            <KeyValueEditor
+              items={headers}
+              onChange={onHeadersChange}
+              onRemove={onHeadersRemove}
+              environmentValues={environmentValues}
+              onItemsReplace={onHeadersReplace}
+              showBulkEdit
+              duplicateCheck="case-insensitive"
+            />
+          </>
         )}
 
         {activeTab === "Cookies" && (
@@ -305,71 +338,92 @@ export const RequestPane = (props: RequestPaneProps) => {
                     + Add Cookie
                   </button>
                 </div>
-                {cookies.length === 0 ? (
+                <div className="cookie-filters">
+                  <input
+                    className="cookie-filter-input"
+                    placeholder="Filter domain"
+                    value={cookieDomainFilter}
+                    onChange={(event) => setCookieDomainFilter(event.target.value)}
+                  />
+                  <input
+                    className="cookie-filter-input"
+                    placeholder="Filter path"
+                    value={cookiePathFilter}
+                    onChange={(event) => setCookiePathFilter(event.target.value)}
+                  />
+                </div>
+                {hasInsecureSameSite && (
+                  <div className="cookie-warning">
+                    SameSite=None requires Secure. Some cookies may be rejected by browsers.
+                  </div>
+                )}
+                {filteredCookies.length === 0 ? (
                   <div className="empty-state" style={{ paddingTop: 20 }}>
-                    No cookies for this domain yet.
+                    {cookies.length === 0 ? "No cookies for this domain yet." : "No cookies match the filters."}
                   </div>
                 ) : (
                   <div className="cookie-table">
                     <div className="cookie-row cookie-header">
-                      <div>On</div>
-                      <div>Name</div>
-                      <div>Value</div>
-                      <div>Domain</div>
-                      <div>Path</div>
-                      <div>Host Only</div>
-                      <div>Expires</div>
-                      <div>Secure</div>
-                      <div>HttpOnly</div>
-                      <div>SameSite</div>
-                      <div></div>
+                      <div className="cookie-cell-header center">On</div>
+                      <div className="cookie-cell-header">Name</div>
+                      <div className="cookie-cell-header">Value</div>
+                      <div className="cookie-cell-header">Domain</div>
+                      <div className="cookie-cell-header">Path</div>
+                      <div className="cookie-cell-header center">Host Only</div>
+                      <div className="cookie-cell-header">Expires</div>
+                      <div className="cookie-cell-header center">Secure</div>
+                      <div className="cookie-cell-header center">HttpOnly</div>
+                      <div className="cookie-cell-header">SameSite</div>
+                      <div className="cookie-cell-header center"></div>
                     </div>
-                    {cookies.map((cookie) => {
+                    {filteredCookies.map((cookie) => {
                       return (
                         <div key={cookie.id} className="cookie-row">
-                          <div>
+                          <div className="cookie-cell center">
                             <input
                               type="checkbox"
+                              className="kv-checkbox"
                               checked={cookie.enabled}
                               onChange={(event) => onCookieUpdate(cookie.id, { enabled: event.target.checked })}
                             />
                           </div>
-                          <div>
+                          <div className="cookie-cell">
                             <input
                               className="cookie-input"
                               value={cookie.name}
                               onChange={(event) => onCookieUpdate(cookie.id, { name: event.target.value })}
                             />
                           </div>
-                          <div>
+                          <div className="cookie-cell">
                             <input
                               className="cookie-input"
                               value={cookie.value}
                               onChange={(event) => onCookieUpdate(cookie.id, { value: event.target.value })}
                             />
                           </div>
-                          <div>
+                          <div className="cookie-cell">
                             <input
                               className="cookie-input"
                               value={cookie.domain}
                               onChange={(event) => onCookieUpdate(cookie.id, { domain: event.target.value })}
                             />
                           </div>
-                          <div>
+                          <div className="cookie-cell">
                             <input
                               className="cookie-input"
                               value={cookie.path}
                               onChange={(event) => onCookieUpdate(cookie.id, { path: event.target.value })}
                             />
                           </div>
-                          <div>
+                          <div className="cookie-cell center">
                             <input
                               type="checkbox"
+                              className="kv-checkbox"
                               checked={cookie.hostOnly}
                               onChange={(event) => onCookieUpdate(cookie.id, { hostOnly: event.target.checked })}
                             />
                           </div>
-                          <div>
+                          <div className="cookie-cell">
                             <input
                               type="datetime-local"
                               className="cookie-input"
@@ -377,21 +431,23 @@ export const RequestPane = (props: RequestPaneProps) => {
                               onChange={(event) => onCookieUpdate(cookie.id, { expires: parseDate(event.target.value) })}
                             />
                           </div>
-                          <div>
+                          <div className="cookie-cell center">
                             <input
                               type="checkbox"
+                              className="kv-checkbox"
                               checked={cookie.secure}
                               onChange={(event) => onCookieUpdate(cookie.id, { secure: event.target.checked })}
                             />
                           </div>
-                          <div>
+                          <div className="cookie-cell center">
                             <input
                               type="checkbox"
+                              className="kv-checkbox"
                               checked={cookie.httpOnly}
                               onChange={(event) => onCookieUpdate(cookie.id, { httpOnly: event.target.checked })}
                             />
                           </div>
-                          <div>
+                          <div className="cookie-cell">
                             <select
                               className="cookie-select"
                               value={cookie.sameSite ?? ""}
@@ -407,7 +463,7 @@ export const RequestPane = (props: RequestPaneProps) => {
                               <option value="None">None</option>
                             </select>
                           </div>
-                          <div>
+                          <div className="cookie-cell center">
                             <button type="button" className="cookie-delete" onClick={() => onCookieRemove(cookie.id)}>
                               Delete
                             </button>
@@ -423,10 +479,10 @@ export const RequestPane = (props: RequestPaneProps) => {
         )}
 
         {activeTab === "Body" && (
-          <div style={{ display: 'flex', flexDirection: 'column', height: '100%', gap: 10 }}>
-            <div className="radio-group" style={{ display: 'flex', gap: 12, fontSize: '0.8rem', color: 'var(--text-muted)', flexWrap: 'wrap', alignItems: 'center' }}>
+          <div className="body-container">
+            <div className="body-toolbar">
               {BODY_TYPES.map(bt => (
-                <label key={bt.id} style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
+                <label key={bt.id} className="body-type-radio">
                   <input
                     type="radio"
                     name="bodyType"
@@ -435,14 +491,16 @@ export const RequestPane = (props: RequestPaneProps) => {
                     onChange={(e) => onBodyTypeChange(e.target.value as BodyType)}
                     style={{ accentColor: 'var(--primary)' }}
                   />
-                  <span style={{ color: bodyType === bt.id ? 'var(--text-main)' : 'inherit' }}>{bt.label}</span>
+                  <span style={{ color: bodyType === bt.id ? 'var(--text-main)' : 'inherit', fontWeight: bodyType === bt.id ? 500 : 400 }}>
+                    {bt.label}
+                  </span>
                 </label>
               ))}
 
               {bodyType === "raw" && (
                 <select 
                   className="method-select" 
-                  style={{ height: 24, padding: '0 8px', fontSize: '0.75rem', marginLeft: 'auto' }}
+                  style={{ height: 32, padding: '0 12px', fontSize: '0.8rem', marginLeft: 'auto' }}
                   value={rawType}
                   onChange={(e) => onRawTypeChange(e.target.value as RawType)}
                 >
@@ -451,47 +509,49 @@ export const RequestPane = (props: RequestPaneProps) => {
               )}
             </div>
 
-            <div style={{ flex: 1, position: 'relative', border: '1px solid var(--border-subtle)', borderRadius: 6, overflow: 'hidden' }}>
+            <div className="body-content">
               {bodyType === "none" && (
                 <div className="empty-state">
                   <span style={{ opacity: 0.5 }}>This request has no body</span>
                 </div>
               )}
               {bodyType === "raw" && (
-                <Editor
-                  height="100%"
-                  language={rawType === 'javascript' ? 'javascript' : rawType}
-                  theme="vs-dark"
-                  value={bodyJson}
-                  onChange={(value) => onBodyJsonChange(value || "")}
-                  options={{
-                    minimap: { enabled: false },
-                    scrollBeyondLastLine: false,
-                    fontSize: 13,
-                    automaticLayout: true,
-                    padding: { top: 10 }
-                  }}
-                />
+                <div className="body-editor">
+                  <Editor
+                    height="100%"
+                    language={rawType === "javascript" ? "javascript" : rawType}
+                    theme="vs-dark"
+                    value={bodyJson}
+                    onChange={(value) => onBodyJsonChange(value || "")}
+                    options={{
+                      minimap: { enabled: false },
+                      scrollBeyondLastLine: false,
+                      fontSize: 13,
+                      automaticLayout: true,
+                      padding: { top: 10 },
+                    }}
+                  />
+                </div>
               )}
               {bodyType === "form-data" && (
-                <div style={{ padding: 10 }}>
-                  <KeyValueEditor
+                 <KeyValueEditor
                     items={bodyFormData}
                     onChange={onBodyFormDataChange}
                     onRemove={onBodyFormDataRemove}
                     environmentValues={environmentValues}
+                    onItemsReplace={onBodyFormDataReplace}
+                    showBulkEdit
                   />
-                </div>
               )}
               {bodyType === "x-www-form-urlencoded" && (
-                <div style={{ padding: 10 }}>
-                  <KeyValueEditor
+                 <KeyValueEditor
                     items={bodyUrlEncoded}
                     onChange={onBodyUrlEncodedChange}
                     onRemove={onBodyUrlEncodedRemove}
                     environmentValues={environmentValues}
+                    onItemsReplace={onBodyUrlEncodedReplace}
+                    showBulkEdit
                   />
-                </div>
               )}
               {bodyType === "binary" && (
                 <div className="empty-state">
@@ -503,40 +563,52 @@ export const RequestPane = (props: RequestPaneProps) => {
         )}
 
         {activeTab === "Settings" && (
-           <div className="kv-editor">
-             <div className="kv-row" style={{ gridTemplateColumns: "1fr 120px" }}>
-                <span style={{ fontSize: '0.85rem', color: 'var(--text-main)' }}>HTTP Version</span>
-                <select 
-                  className="method-select" 
-                  style={{ height: 30, padding: '0 8px', fontSize: '0.8rem' }}
-                  value={settings.httpVersion}
-                  onChange={(e) => onSettingsChange("httpVersion", e.target.value)}
-                >
-                  <option value="HTTP/1.1">HTTP/1.1</option>
-                  <option value="HTTP/2">HTTP/2</option>
-                </select>
-             </div>
-             
-             <div className="kv-row" style={{ gridTemplateColumns: "1fr auto" }}>
-                <span style={{ fontSize: '0.85rem', color: 'var(--text-main)' }}>Enable SSL Certificate Verification</span>
-                <div className="checkbox-wrapper">
-                    <input 
-                      type="checkbox" 
-                      checked={settings.verifySsl}
-                      onChange={(e) => onSettingsChange("verifySsl", e.target.checked)}
-                    />
-                </div>
-             </div>
+           <div className="settings-pane">
+             <div className="settings-card">
+               <div className="settings-row">
+                 <div className="settings-meta">
+                   <div className="settings-label">HTTP Version</div>
+                   <div className="settings-desc">Protocol used for the request.</div>
+                 </div>
+                 <select
+                   className="settings-select"
+                   value={settings.httpVersion}
+                   onChange={(e) => onSettingsChange("httpVersion", e.target.value)}
+                 >
+                   <option value="HTTP/1.1">HTTP/1.1</option>
+                   <option value="HTTP/2">HTTP/2</option>
+                 </select>
+               </div>
 
-             <div className="kv-row" style={{ gridTemplateColumns: "1fr auto" }}>
-                <span style={{ fontSize: '0.85rem', color: 'var(--text-main)' }}>Automatically Follow Redirects</span>
-                <div className="checkbox-wrapper">
-                    <input 
-                      type="checkbox" 
-                      checked={settings.followRedirects}
-                      onChange={(e) => onSettingsChange("followRedirects", e.target.checked)}
-                    />
-                </div>
+               <div className="settings-row">
+                 <div className="settings-meta">
+                   <div className="settings-label">SSL Certificate Verification</div>
+                   <div className="settings-desc">Validate the server certificate chain.</div>
+                 </div>
+                 <label className="settings-toggle">
+                   <input
+                     type="checkbox"
+                     checked={settings.verifySsl}
+                     onChange={(e) => onSettingsChange("verifySsl", e.target.checked)}
+                   />
+                   <span className="settings-toggle-ui" />
+                 </label>
+               </div>
+
+               <div className="settings-row">
+                 <div className="settings-meta">
+                   <div className="settings-label">Automatically Follow Redirects</div>
+                   <div className="settings-desc">Handle 3xx responses without manual steps.</div>
+                 </div>
+                 <label className="settings-toggle">
+                   <input
+                     type="checkbox"
+                     checked={settings.followRedirects}
+                     onChange={(e) => onSettingsChange("followRedirects", e.target.checked)}
+                   />
+                   <span className="settings-toggle-ui" />
+                 </label>
+               </div>
              </div>
            </div>
         )}

@@ -14,7 +14,7 @@ export type BodyType = "none" | "form-data" | "x-www-form-urlencoded" | "raw" | 
 
 export type RawType = "text" | "javascript" | "json" | "html" | "xml";
 
-export type RequestType = "http" | "grpc";
+export type RequestType = "http" | "grpc" | "websocket" | "socketio" | "graphql" | "mqtt" | "ia" | "mcp";
 
 export type RequestSettings = {
   httpVersion: "HTTP/1.1" | "HTTP/2";
@@ -54,6 +54,7 @@ export type HistoryItem = {
   url: string;
   status: string;
   timeMs: number;
+  pinned?: boolean;
 };
 
 export type RequestData = {

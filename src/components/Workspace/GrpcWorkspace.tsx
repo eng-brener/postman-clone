@@ -1,7 +1,7 @@
-export const GrpcWorkspace = () => (
+export const GrpcWorkspace = ({ requestTypeLabel }: { requestTypeLabel: string }) => (
   <>
     <div className="url-bar-container">
-      <div className="modal-text">gRPC request builder coming soon.</div>
+      <div className="modal-text">{requestTypeLabel} request builder coming soon.</div>
     </div>
     <div className="workspace-grid">
       <div className="request-pane">
@@ -11,7 +11,7 @@ export const GrpcWorkspace = () => (
           </div>
         </div>
         <div className="pane-content">
-          <div className="modal-text">Placeholder for gRPC request inputs.</div>
+          <div className="modal-text">Placeholder for {requestTypeLabel} request inputs.</div>
         </div>
       </div>
       <div className="response-pane">
@@ -21,7 +21,7 @@ export const GrpcWorkspace = () => (
           </div>
         </div>
         <div className="pane-content">
-          <div className="modal-text">Send a gRPC request to see the response here.</div>
+          <div className="modal-text">Send a {requestTypeLabel} request to see the response here.</div>
         </div>
       </div>
     </div>

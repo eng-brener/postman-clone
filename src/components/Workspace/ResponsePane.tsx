@@ -1,6 +1,6 @@
 import Editor from "@monaco-editor/react";
-import { Clock, FileJson, Send, AlertCircle } from "lucide-react";
-import { useState } from "react";
+import { Send, AlertCircle } from "lucide-react";
+import { useMemo, useState } from "react";
 
 type ParsedCookieRow = {
   name: string;
@@ -73,6 +73,8 @@ interface ResponsePaneProps {
   responseHeaders: [string, string][];
   errorMessage: string | null;
   responseLanguage: string;
+  followRedirects: boolean;
+  onFollowRedirectsChange: (value: boolean) => void;
 }
 
 const TabButton = ({ active, label, onClick }: { active: boolean; label: string; onClick: () => void }) => (
@@ -85,10 +87,13 @@ export const ResponsePane = (props: ResponsePaneProps) => {
   const { 
     activeTab, onTabChange, 
     responseCode, responseStatus, responseTime, responseSize, 
-    responseRaw, responsePretty, responseHeaders, errorMessage, responseLanguage
+    responseRaw, responsePretty, responseHeaders, errorMessage, responseLanguage,
+    followRedirects, onFollowRedirectsChange
   } = props;
   const [expandedCookieValues, setExpandedCookieValues] = useState<Set<string>>(new Set());
   const [expandedCookieNames, setExpandedCookieNames] = useState<Set<string>>(new Set());
+  const [rawSearch, setRawSearch] = useState("");
+  const [rawWrap, setRawWrap] = useState(true);
   const responseCookies = responseHeaders.filter(([key]) => key.toLowerCase() === "set-cookie");
   const parsedCookies = responseCookies
     .flatMap(([, value]) => splitSetCookieHeader(value))
@@ -126,8 +131,39 @@ export const ResponsePane = (props: ResponsePaneProps) => {
     return `${value.slice(0, max)}...`;
   };
 
+  const escapeHtml = (value: string) =>
+    value
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#39;");
+
+  const escapeRegExp = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+  const highlightedRaw = useMemo(() => {
+    if (!rawSearch) {
+      return escapeHtml(responseRaw);
+    }
+    const escaped = escapeHtml(responseRaw);
+    const pattern = new RegExp(escapeRegExp(rawSearch), "gi");
+    return escaped.replace(pattern, (match) => `<mark>${match}</mark>`);
+  }, [rawSearch, responseRaw]);
+
+  const formatBytes = (bytes: number) => {
+    if (bytes < 1024) {
+      return `${bytes} B`;
+    }
+    const kb = bytes / 1024;
+    if (kb < 1024) {
+      return `${kb.toFixed(1)} KB`;
+    }
+    const mb = kb / 1024;
+    return `${mb.toFixed(1)} MB`;
+  };
+
   return (
-    <div className="response-pane">
+    <div className="response-pane" style={{ flex: 1, height: '100%' }}>
       <div className="pane-header">
         <div className="tabs">
           {(["Preview", "Header", "Cookies", "Raw"] as const).map(tab => {
@@ -153,25 +189,30 @@ export const ResponsePane = (props: ResponsePaneProps) => {
         </div>
         {responseCode && (
           <div className="status-bar">
-            <div className="status-item">
-              <span>Status:</span>
-              <span className={`status-value ${responseCode < 300 ? 'green' : 'red'}`}>
-                {responseStatus}
-              </span>
+            <div className={`status-badge ${responseCode < 300 ? 'green' : 'red'}`}>
+              <span style={{ marginRight: 6 }}>{responseCode}</span>
+              <span>{responseStatus.replace(/^\d+\s*/, '')}</span>
             </div>
             <div className="status-item">
-              <Clock size={14} />
-              <span className="status-value">{responseTime}ms</span>
+              <span className="status-value">{responseTime} ms</span>
             </div>
             <div className="status-item">
-              <FileJson size={14} />
-              <span className="status-value">{responseSize} B</span>
+              <span className="status-value">{formatBytes(responseSize)}</span>
+            </div>
+            <div className="status-item status-toggle">
+              <button
+                type="button"
+                className={`status-toggle-btn ${followRedirects ? "active" : ""}`}
+                onClick={() => onFollowRedirectsChange(!followRedirects)}
+              >
+                Redirects {followRedirects ? "On" : "Off"}
+              </button>
             </div>
           </div>
         )}
       </div>
 
-      <div className="pane-content" style={{ padding: 0 }}>
+      <div className="pane-content">
         {errorMessage ? (
           <div style={{ color: 'var(--error)', padding: 20 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
@@ -206,17 +247,21 @@ export const ResponsePane = (props: ResponsePaneProps) => {
               </div>
             )}
             {activeTab === "Header" && (
-              <div style={{ display: "grid", gap: 8, fontSize: "0.85rem", color: "var(--text-main)", padding: 16 }}>
+              <div style={{ display: "grid", gap: 0, fontSize: "0.85rem", color: "var(--text-main)", width: '100%' }}>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 2fr", gap: 12, padding: "8px 16px", background: "var(--bg-panel)", borderBottom: "1px solid var(--border-subtle)", fontWeight: 600, color: "var(--text-muted)", fontSize: "0.75rem", textTransform: "uppercase" }}>
+                   <div>Key</div>
+                   <div>Value</div>
+                </div>
                 {responseHeaders.map(([key, value], i) => (
-                  <div key={i} style={{ display: "grid", gridTemplateColumns: "1fr 2fr", gap: 12, paddingBottom: 4, borderBottom: "1px solid var(--border-subtle)" }}>
+                  <div key={i} style={{ display: "grid", gridTemplateColumns: "1fr 2fr", gap: 12, padding: "8px 16px", borderBottom: "1px solid var(--border-subtle)" }}>
                     <span style={{ fontWeight: 600, color: "var(--text-muted)" }}>{key}</span>
-                    <span style={{ wordBreak: "break-all" }}>{value}</span>
+                    <span style={{ wordBreak: "break-all", fontFamily: "var(--font-mono)", fontSize: "0.8rem" }}>{value}</span>
                   </div>
                 ))}
               </div>
             )}
             {activeTab === "Cookies" && (
-              <div style={{ padding: 16 }}>
+              <div className="cookie-pane">
                 {parsedCookies.length === 0 ? (
                   <div className="empty-state" style={{ padding: 12 }}>
                     No cookies returned.
@@ -224,13 +269,13 @@ export const ResponsePane = (props: ResponsePaneProps) => {
                 ) : (
                   <div className="cookie-table">
                     <div className="cookie-row-response cookie-header">
-                      <div>Name</div>
-                      <div>Value</div>
-                      <div>Domain</div>
-                      <div>Path</div>
-                      <div>Expires</div>
-                      <div>HttpOnly</div>
-                      <div>Secure</div>
+                      <div className="cookie-cell-header">Name</div>
+                      <div className="cookie-cell-header">Value</div>
+                      <div className="cookie-cell-header">Domain</div>
+                      <div className="cookie-cell-header">Path</div>
+                      <div className="cookie-cell-header">Expires</div>
+                      <div className="cookie-cell-header center">HttpOnly</div>
+                      <div className="cookie-cell-header center">Secure</div>
                     </div>
                     {parsedCookies.map((cookie, i) => {
                       const rowKey = `${cookie.name}-${i}`;
@@ -238,36 +283,46 @@ export const ResponsePane = (props: ResponsePaneProps) => {
                       const isNameExpanded = expandedCookieNames.has(rowKey);
                       return (
                         <div key={rowKey} className="cookie-row-response">
-                        <div>
-                          <button
-                            type="button"
-                            className="cookie-value-button"
-                            onClick={() => toggleCookieName(rowKey)}
-                            title={isNameExpanded ? "Collapse name" : "Expand name"}
-                          >
-                            <span className={`cookie-value-text ${isNameExpanded ? "expanded" : ""}`}>
-                              {isNameExpanded ? cookie.name : truncateValue(cookie.name)}
-                            </span>
-                          </button>
+                          <div className="cookie-cell">
+                            <button
+                              type="button"
+                              className="cookie-value-button"
+                              onClick={() => toggleCookieName(rowKey)}
+                              title={isNameExpanded ? "Collapse name" : "Expand name"}
+                            >
+                              <span className={`cookie-value-text ${isNameExpanded ? "expanded" : ""}`}>
+                                {isNameExpanded ? cookie.name : truncateValue(cookie.name)}
+                              </span>
+                            </button>
+                          </div>
+                          <div className="cookie-cell">
+                            <button
+                              type="button"
+                              className="cookie-value-button"
+                              onClick={() => toggleCookieValue(rowKey)}
+                              title={isValueExpanded ? "Collapse value" : "Expand value"}
+                            >
+                              <span className={`cookie-value-text ${isValueExpanded ? "expanded" : ""}`}>
+                                {isValueExpanded ? cookie.value : truncateValue(cookie.value)}
+                              </span>
+                            </button>
+                          </div>
+                          <div className="cookie-cell">
+                            <span className="cookie-cell-text">{cookie.domain}</span>
+                          </div>
+                          <div className="cookie-cell">
+                            <span className="cookie-cell-text">{cookie.path}</span>
+                          </div>
+                          <div className="cookie-cell">
+                            <span className="cookie-cell-text">{cookie.expires}</span>
+                          </div>
+                          <div className="cookie-cell center">
+                            <span className="cookie-cell-text">{cookie.httpOnly ? "Yes" : "No"}</span>
+                          </div>
+                          <div className="cookie-cell center">
+                            <span className="cookie-cell-text">{cookie.secure ? "Yes" : "No"}</span>
+                          </div>
                         </div>
-                        <div>
-                          <button
-                            type="button"
-                            className="cookie-value-button"
-                            onClick={() => toggleCookieValue(rowKey)}
-                            title={isValueExpanded ? "Collapse value" : "Expand value"}
-                          >
-                            <span className={`cookie-value-text ${isValueExpanded ? "expanded" : ""}`}>
-                              {isValueExpanded ? cookie.value : truncateValue(cookie.value)}
-                            </span>
-                          </button>
-                        </div>
-                        <div>{cookie.domain}</div>
-                        <div>{cookie.path}</div>
-                        <div>{cookie.expires}</div>
-                        <div>{cookie.httpOnly ? "Yes" : "No"}</div>
-                        <div>{cookie.secure ? "Yes" : "No"}</div>
-                      </div>
                       );
                     })}
                   </div>
@@ -275,7 +330,27 @@ export const ResponsePane = (props: ResponsePaneProps) => {
               </div>
             )}
             {activeTab === "Raw" && (
-              <pre className="response-preview" style={{ margin: 0, padding: 16 }}>{responseRaw}</pre>
+              <div className="response-raw">
+                <div className="response-raw-toolbar">
+                  <input
+                    className="response-raw-search"
+                    placeholder="Search in response"
+                    value={rawSearch}
+                    onChange={(event) => setRawSearch(event.target.value)}
+                  />
+                  <button
+                    type="button"
+                    className={`response-raw-toggle ${rawWrap ? "active" : ""}`}
+                    onClick={() => setRawWrap((prev) => !prev)}
+                  >
+                    Wrap {rawWrap ? "On" : "Off"}
+                  </button>
+                </div>
+                <pre
+                  className={`response-preview ${rawWrap ? "" : "no-wrap"}`}
+                  dangerouslySetInnerHTML={{ __html: highlightedRaw }}
+                />
+              </div>
             )}
           </>
         )}
