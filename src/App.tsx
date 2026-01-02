@@ -12,62 +12,117 @@ import { useKeyValueList } from "./hooks/useKeyValueList";
 import { BodyType, HistoryItem, KeyValue, RawType, RequestSettings, AuthType, AuthData } from "./types";
 
 const emptyRow = (): KeyValue => ({ key: "", value: "", enabled: true });
+const cloneKeyValues = (items: KeyValue[]) => items.map((item) => ({ ...item }));
+
+type RequestTab = {
+  id: string;
+  method: string;
+  url: string;
+  params: KeyValue[];
+  headers: KeyValue[];
+  authType: AuthType;
+  authData: AuthData;
+  bodyType: BodyType;
+  rawType: RawType;
+  bodyJson: string;
+  bodyFormData: KeyValue[];
+  bodyUrlEncoded: KeyValue[];
+  settings: RequestSettings;
+  responseCode: number | null;
+  responseStatus: string;
+  responseTime: number;
+  responseSize: number;
+  responseRaw: string;
+  responsePretty: string;
+  responseHeaders: [string, string][];
+  errorMessage: string | null;
+};
 
 function App() {
   // App Info
   const [appName, setAppName] = useState("Postman Clone");
   const [appVersion, setAppVersion] = useState<string | null>(null);
 
-  // Request State
-  const [method, setMethod] = useState("GET");
-  const [url, setUrl] = useState("https://catfact.ninja/fact");
-  const [isSending, setIsSending] = useState(false);
-  const [settings, setSettings] = useState<RequestSettings>({
+  const defaultSettings: RequestSettings = {
     httpVersion: "HTTP/1.1",
     verifySsl: true,
-    followRedirects: true
-  });
-
-  // Auth State
-  const [authType, setAuthType] = useState<AuthType>("none");
-  const [authData, setAuthData] = useState<AuthData>({
+    followRedirects: true,
+  };
+  const defaultAuthData: AuthData = {
     apiKey: { key: "", value: "", addTo: "header" },
     bearer: { token: "" },
-    basic: { username: "", password: "" }
+    basic: { username: "", password: "" },
+  };
+  const defaultBodyJson = `{
+  "customer_id": "cst_8842",
+  "adjust": true,
+  "tags": ["solar", "priority"]
+}`;
+  const defaultHeadersList: KeyValue[] = [
+    { key: "User-Agent", value: "PostmanClone/1.0", enabled: true },
+  ];
+
+  const createDefaultTab = (): RequestTab => ({
+    id: `tab-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+    method: "GET",
+    url: "https://catfact.ninja/fact",
+    params: [emptyRow()],
+    headers: cloneKeyValues(defaultHeadersList),
+    authType: "none",
+    authData: { ...defaultAuthData, apiKey: { ...defaultAuthData.apiKey }, bearer: { ...defaultAuthData.bearer }, basic: { ...defaultAuthData.basic } },
+    bodyType: "none",
+    rawType: "json",
+    bodyJson: defaultBodyJson,
+    bodyFormData: [emptyRow()],
+    bodyUrlEncoded: [emptyRow()],
+    settings: { ...defaultSettings },
+    responseCode: null,
+    responseStatus: "--",
+    responseTime: 0,
+    responseSize: 0,
+    responseRaw: "",
+    responsePretty: "",
+    responseHeaders: [],
+    errorMessage: null,
   });
+
+  const [tabs, setTabs] = useState<RequestTab[]>([createDefaultTab()]);
+  const [activeTabId, setActiveTabId] = useState<string | null>(tabs[0].id);
+
+  // Request State
+  const [method, setMethod] = useState(tabs[0].method);
+  const [url, setUrl] = useState(tabs[0].url);
+  const [isSending, setIsSending] = useState(false);
+  const [settings, setSettings] = useState<RequestSettings>(tabs[0].settings);
+
+  // Auth State
+  const [authType, setAuthType] = useState<AuthType>(tabs[0].authType);
+  const [authData, setAuthData] = useState<AuthData>(tabs[0].authData);
   
   // Tabs State
   const [activeReqTab, setActiveReqTab] = useState("Params");
   const [activeResTab, setActiveResTab] = useState("Preview");
 
   // Data State (using hooks where appropriate)
-  const [params, setParams, removeParam] = useKeyValueList([emptyRow()]);
-  const [headers, setHeaders, removeHeader] = useKeyValueList([
-    { key: "User-Agent", value: "PostmanClone/1.0", enabled: true },
-  ]);
+  const [params, setParams, removeParam, setParamsList] = useKeyValueList([emptyRow()]);
+  const [headers, setHeaders, removeHeader, setHeadersList] = useKeyValueList(defaultHeadersList);
 
-  const [bodyType, setBodyType] = useState<BodyType>("none");
-  const [rawType, setRawType] = useState<RawType>("json");
-  const [bodyJson, setBodyJson] = useState(
-    `{
-  "customer_id": "cst_8842",
-  "adjust": true,
-  "tags": ["solar", "priority"]
-}`
-  );
+  const [bodyType, setBodyType] = useState<BodyType>(tabs[0].bodyType);
+  const [rawType, setRawType] = useState<RawType>(tabs[0].rawType);
+  const [bodyJson, setBodyJson] = useState(tabs[0].bodyJson);
   
-  const [bodyFormData, setBodyFormData, removeBodyFormData] = useKeyValueList([emptyRow()]);
-  const [bodyUrlEncoded, setBodyUrlEncoded, removeBodyUrlEncoded] = useKeyValueList([emptyRow()]);
+  const [bodyFormData, setBodyFormData, removeBodyFormData, setBodyFormDataList] = useKeyValueList([emptyRow()]);
+  const [bodyUrlEncoded, setBodyUrlEncoded, removeBodyUrlEncoded, setBodyUrlEncodedList] = useKeyValueList([emptyRow()]);
 
   // Response State
-  const [responseCode, setResponseCode] = useState<number | null>(null);
-  const [responseStatus, setResponseStatus] = useState("--");
-  const [responseTime, setResponseTime] = useState(0);
-  const [responseSize, setResponseSize] = useState(0);
-  const [responseRaw, setResponseRaw] = useState("");
-  const [responsePretty, setResponsePretty] = useState("");
-  const [responseHeaders, setResponseHeaders] = useState<[string, string][]>([]);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [responseCode, setResponseCode] = useState<number | null>(tabs[0].responseCode);
+  const [responseStatus, setResponseStatus] = useState(tabs[0].responseStatus);
+  const [responseTime, setResponseTime] = useState(tabs[0].responseTime);
+  const [responseSize, setResponseSize] = useState(tabs[0].responseSize);
+  const [responseRaw, setResponseRaw] = useState(tabs[0].responseRaw);
+  const [responsePretty, setResponsePretty] = useState(tabs[0].responsePretty);
+  const [responseHeaders, setResponseHeaders] = useState<[string, string][]>(tabs[0].responseHeaders);
+  const [errorMessage, setErrorMessage] = useState<string | null>(tabs[0].errorMessage);
   
   // History
   const [history, setHistory] = useState<HistoryItem[]>([]);
@@ -137,18 +192,197 @@ function App() {
     return result;
   }, [headers, bodyType, rawType, activeReqTab, authType, authData]);
 
+  const updateActiveTab = (updater: (tab: RequestTab) => RequestTab) => {
+    if (!activeTabId) {
+      return;
+    }
+    setTabs((prev) => prev.map((tab) => (tab.id === activeTabId ? updater(tab) : tab)));
+  };
+
+  const updateKeyValueList = (
+    list: KeyValue[],
+    index: number,
+    field: keyof KeyValue,
+    value: string | boolean
+  ) => {
+    const next = list.map((item, idx) => (idx === index ? { ...item, [field]: value } : item));
+    if (index === list.length - 1 && (field === "key" || field === "value") && value !== "") {
+      next.push(emptyRow());
+    }
+    return next;
+  };
+
+  const removeKeyValueItem = (list: KeyValue[], index: number) => {
+    if (list.length <= 1) {
+      return [emptyRow()];
+    }
+    return list.filter((_, idx) => idx !== index);
+  };
+
+  const handleMethodChange = (next: string) => {
+    setMethod(next);
+    updateActiveTab((tab) => ({ ...tab, method: next }));
+  };
+
+  const handleUrlChange = (next: string) => {
+    setUrl(next);
+    updateActiveTab((tab) => ({ ...tab, url: next }));
+  };
+
   const handleSettingsChange = (field: keyof RequestSettings, val: any) => {
-    setSettings(prev => ({ ...prev, [field]: val }));
+    setSettings((prev) => ({ ...prev, [field]: val }));
+    updateActiveTab((tab) => ({ ...tab, settings: { ...tab.settings, [field]: val } }));
+  };
+
+  const handleAuthTypeChange = (next: AuthType) => {
+    setAuthType(next);
+    updateActiveTab((tab) => ({ ...tab, authType: next }));
   };
 
   const handleAuthDataChange = (type: AuthType, field: string, val: string) => {
-    setAuthData(prev => ({
-       ...prev,
-       [type === "api-key" ? "apiKey" : type]: {
-          ...prev[type === "api-key" ? "apiKey" : type as "bearer" | "basic"],
-          [field]: val
-       }
+    setAuthData((prev) => ({
+      ...prev,
+      [type === "api-key" ? "apiKey" : type]: {
+        ...prev[type === "api-key" ? "apiKey" : (type as "bearer" | "basic")],
+        [field]: val,
+      },
     }));
+    updateActiveTab((tab) => {
+      const key = type === "api-key" ? "apiKey" : type;
+      return {
+        ...tab,
+        authData: {
+          ...tab.authData,
+          [key]: {
+            ...tab.authData[key],
+            [field]: val,
+          },
+        },
+      };
+    });
+  };
+
+  const handleParamsChange = (idx: number, field: keyof KeyValue, val: string | boolean) => {
+    setParams(idx, field, val);
+    updateActiveTab((tab) => ({ ...tab, params: updateKeyValueList(tab.params, idx, field, val) }));
+  };
+
+  const handleParamsRemove = (idx: number) => {
+    removeParam(idx);
+    updateActiveTab((tab) => ({ ...tab, params: removeKeyValueItem(tab.params, idx) }));
+  };
+
+  const handleHeadersChange = (idx: number, field: keyof KeyValue, val: string | boolean) => {
+    setHeaders(idx, field, val);
+    updateActiveTab((tab) => ({ ...tab, headers: updateKeyValueList(tab.headers, idx, field, val) }));
+  };
+
+  const handleHeadersRemove = (idx: number) => {
+    removeHeader(idx);
+    updateActiveTab((tab) => ({ ...tab, headers: removeKeyValueItem(tab.headers, idx) }));
+  };
+
+  const handleBodyTypeChange = (next: BodyType) => {
+    setBodyType(next);
+    updateActiveTab((tab) => ({ ...tab, bodyType: next }));
+  };
+
+  const handleRawTypeChange = (next: RawType) => {
+    setRawType(next);
+    updateActiveTab((tab) => ({ ...tab, rawType: next }));
+  };
+
+  const handleBodyJsonChange = (next: string) => {
+    setBodyJson(next);
+    updateActiveTab((tab) => ({ ...tab, bodyJson: next }));
+  };
+
+  const handleBodyFormDataChange = (idx: number, field: keyof KeyValue, val: string | boolean) => {
+    setBodyFormData(idx, field, val);
+    updateActiveTab((tab) => ({
+      ...tab,
+      bodyFormData: updateKeyValueList(tab.bodyFormData, idx, field, val),
+    }));
+  };
+
+  const handleBodyFormDataRemove = (idx: number) => {
+    removeBodyFormData(idx);
+    updateActiveTab((tab) => ({ ...tab, bodyFormData: removeKeyValueItem(tab.bodyFormData, idx) }));
+  };
+
+  const handleBodyUrlEncodedChange = (idx: number, field: keyof KeyValue, val: string | boolean) => {
+    setBodyUrlEncoded(idx, field, val);
+    updateActiveTab((tab) => ({
+      ...tab,
+      bodyUrlEncoded: updateKeyValueList(tab.bodyUrlEncoded, idx, field, val),
+    }));
+  };
+
+  const handleBodyUrlEncodedRemove = (idx: number) => {
+    removeBodyUrlEncoded(idx);
+    updateActiveTab((tab) => ({ ...tab, bodyUrlEncoded: removeKeyValueItem(tab.bodyUrlEncoded, idx) }));
+  };
+
+  const loadTab = (tab: RequestTab) => {
+    setMethod(tab.method);
+    setUrl(tab.url);
+    setSettings(tab.settings);
+    setAuthType(tab.authType);
+    setAuthData(tab.authData);
+    setParamsList(cloneKeyValues(tab.params));
+    setHeadersList(cloneKeyValues(tab.headers));
+    setBodyType(tab.bodyType);
+    setRawType(tab.rawType);
+    setBodyJson(tab.bodyJson);
+    setBodyFormDataList(cloneKeyValues(tab.bodyFormData));
+    setBodyUrlEncodedList(cloneKeyValues(tab.bodyUrlEncoded));
+    setResponseCode(tab.responseCode);
+    setResponseStatus(tab.responseStatus);
+    setResponseTime(tab.responseTime);
+    setResponseSize(tab.responseSize);
+    setResponseRaw(tab.responseRaw);
+    setResponsePretty(tab.responsePretty);
+    setResponseHeaders(tab.responseHeaders);
+    setErrorMessage(tab.errorMessage);
+  };
+
+  useEffect(() => {
+    if (tabs.length === 0 && activeTabId !== null) {
+      setActiveTabId(null);
+    }
+  }, [tabs, activeTabId]);
+
+  const handleSelectTab = (tabId: string) => {
+    const tab = tabs.find((t) => t.id === tabId);
+    if (!tab) {
+      return;
+    }
+    setActiveTabId(tabId);
+    loadTab(tab);
+  };
+
+  const handleAddTab = () => {
+    const next = createDefaultTab();
+    setTabs((prev) => [...prev, next]);
+    setActiveTabId(next.id);
+    loadTab(next);
+  };
+
+  const handleCloseTab = (tabId: string) => {
+    setTabs((prev) => {
+      const idx = prev.findIndex((t) => t.id === tabId);
+      const nextTabs = prev.filter((t) => t.id !== tabId);
+      if (tabId === activeTabId) {
+        const nextActive = nextTabs[Math.max(0, idx - 1)];
+        if (nextActive) {
+          setActiveTabId(nextActive.id);
+          loadTab(nextActive);
+        } else {
+          setActiveTabId(null);
+        }
+      }
+      return nextTabs;
+    });
   };
 
   const sendRequest = async () => {
@@ -215,6 +449,18 @@ function App() {
       }
       setResponsePretty(formatted);
 
+      updateActiveTab((tab) => ({
+        ...tab,
+        responseCode: response.status,
+        responseStatus: `${response.status} ${response.statusText || ""}`.trim(),
+        responseTime: timeMs,
+        responseSize: rawText.length,
+        responseRaw: rawText,
+        responsePretty: formatted,
+        responseHeaders: headersList,
+        errorMessage: null,
+      }));
+
       // Add to history
       const historyItem: HistoryItem = {
         id: Date.now().toString(),
@@ -226,17 +472,31 @@ function App() {
       setHistory((prev) => [historyItem, ...prev].slice(0, 10));
 
     } catch (error: any) {
-      setErrorMessage(error.toString());
-      setResponseRaw(error.toString());
+      const message = error.toString();
+      setErrorMessage(message);
+      setResponseRaw(message);
+      updateActiveTab((tab) => ({
+        ...tab,
+        responseCode: null,
+        responseStatus: "--",
+        responseTime: 0,
+        responseSize: 0,
+        responseRaw: message,
+        responsePretty: message,
+        responseHeaders: [],
+        errorMessage: message,
+      }));
     } finally {
       setIsSending(false);
     }
   };
 
   const handleSelectRequest = (m: string, u: string) => {
-      setMethod(m);
-      setUrl(u);
+      handleMethodChange(m);
+      handleUrlChange(u);
   };
+
+  const hasActiveTab = tabs.length > 0 && activeTabId !== null;
 
   return (
     <div className="app">
@@ -245,72 +505,116 @@ function App() {
         appVersion={appVersion}
         history={history}
         currentUrl={url}
+        currentMethod={method}
         onSelectRequest={handleSelectRequest}
       />
 
       <main className="main-content">
-        <UrlBar 
-            method={method}
-            url={url}
-            isSending={isSending}
-            onMethodChange={setMethod}
-            onUrlChange={setUrl}
-            onSend={sendRequest}
-        />
-
-        <div className="workspace-grid">
-            <RequestPane 
-                activeTab={activeReqTab}
-                onTabChange={setActiveReqTab}
-                
-                params={params}
-                onParamsChange={setParams}
-                onParamsRemove={removeParam}
-
-                headers={headers}
-                onHeadersChange={setHeaders}
-                onHeadersRemove={removeHeader}
-                
-                authType={authType}
-                onAuthTypeChange={setAuthType}
-                authData={authData}
-                onAuthDataChange={handleAuthDataChange}
-
-                bodyType={bodyType}
-                onBodyTypeChange={setBodyType}
-
-                rawType={rawType}
-                onRawTypeChange={setRawType}
-
-                bodyJson={bodyJson}
-                onBodyJsonChange={setBodyJson}
-
-                bodyFormData={bodyFormData}
-                onBodyFormDataChange={setBodyFormData}
-                onBodyFormDataRemove={removeBodyFormData}
-
-                bodyUrlEncoded={bodyUrlEncoded}
-                onBodyUrlEncodedChange={setBodyUrlEncoded}
-                onBodyUrlEncodedRemove={removeBodyUrlEncoded}
-
-                settings={settings}
-                onSettingsChange={handleSettingsChange}
-            />
-
-            <ResponsePane 
-                activeTab={activeResTab}
-                onTabChange={setActiveResTab}
-                
-                responseCode={responseCode}
-                responseStatus={responseStatus}
-                responseTime={responseTime}
-                responseSize={responseSize}
-                responseRaw={responseRaw}
-                responsePretty={responsePretty}
-                responseHeaders={responseHeaders}
-                errorMessage={errorMessage}
-            />
+        <div className={`request-tabs-bar ${tabs.length === 0 ? "empty" : ""}`}>
+          <div className={`request-tabs ${tabs.length === 0 ? "empty" : ""}`}>
+            {tabs.length === 0 && "No tabs open"}
+            {tabs.map((tab) => (
+              <div
+                key={tab.id}
+                className={`request-tab ${tab.id === activeTabId ? "active" : ""}`}
+                onClick={() => handleSelectTab(tab.id)}
+              >
+                <span className={`method-badge method-${tab.method}`}>{tab.method}</span>
+                <span className="request-tab-label">{tab.url || "New Request"}</span>
+                <button
+                  type="button"
+                  className="request-tab-close"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    handleCloseTab(tab.id);
+                  }}
+                >
+                  ×
+                </button>
+              </div>
+            ))}
+          </div>
+          <button type="button" className="request-tab-add" onClick={handleAddTab}>
+            +
+          </button>
         </div>
+
+        {hasActiveTab ? (
+          <>
+            <UrlBar 
+                method={method}
+                url={url}
+                isSending={isSending}
+                onMethodChange={handleMethodChange}
+                onUrlChange={handleUrlChange}
+                onSend={sendRequest}
+            />
+
+            <div className="workspace-grid">
+                <RequestPane 
+                    activeTab={activeReqTab}
+                    onTabChange={setActiveReqTab}
+                    
+                    params={params}
+                    onParamsChange={handleParamsChange}
+                    onParamsRemove={handleParamsRemove}
+
+                    headers={headers}
+                    onHeadersChange={handleHeadersChange}
+                    onHeadersRemove={handleHeadersRemove}
+                    
+                    authType={authType}
+                    onAuthTypeChange={handleAuthTypeChange}
+                    authData={authData}
+                    onAuthDataChange={handleAuthDataChange}
+
+                    bodyType={bodyType}
+                    onBodyTypeChange={handleBodyTypeChange}
+
+                    rawType={rawType}
+                    onRawTypeChange={handleRawTypeChange}
+
+                    bodyJson={bodyJson}
+                    onBodyJsonChange={handleBodyJsonChange}
+
+                    bodyFormData={bodyFormData}
+                    onBodyFormDataChange={handleBodyFormDataChange}
+                    onBodyFormDataRemove={handleBodyFormDataRemove}
+
+                    bodyUrlEncoded={bodyUrlEncoded}
+                    onBodyUrlEncodedChange={handleBodyUrlEncodedChange}
+                    onBodyUrlEncodedRemove={handleBodyUrlEncodedRemove}
+
+                    settings={settings}
+                    onSettingsChange={handleSettingsChange}
+                />
+
+                <ResponsePane 
+                    activeTab={activeResTab}
+                    onTabChange={setActiveResTab}
+                    
+                    responseCode={responseCode}
+                    responseStatus={responseStatus}
+                    responseTime={responseTime}
+                    responseSize={responseSize}
+                    responseRaw={responseRaw}
+                    responsePretty={responsePretty}
+                    responseHeaders={responseHeaders}
+                    errorMessage={errorMessage}
+                />
+            </div>
+          </>
+        ) : (
+          <div className="empty-workspace">
+            <div className="empty-workspace-card">
+              <div className="empty-title">Postman Clone</div>
+              <div className="empty-subtitle">Open a request tab to get started.</div>
+              <button type="button" className="empty-cta" onClick={handleAddTab}>
+                + New Request
+              </button>
+            </div>
+          </div>
+        )}
       </main>
     </div>
   );

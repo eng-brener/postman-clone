@@ -29,3 +29,20 @@ export type HistoryItem = {
   status: string;
   timeMs: number;
 };
+
+export type CollectionRequest = {
+  id: string;
+  type: "request";
+  name: string;
+  method: string;
+  url: string;
+};
+
+export type CollectionFolder = {
+  id: string;
+  type: "folder";
+  name: string;
+  children: CollectionNode[];
+};
+
+export type CollectionNode = CollectionFolder | CollectionRequest;
