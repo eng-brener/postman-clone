@@ -35,7 +35,6 @@ body {
 
 /* --- Sidebar --- */
 .sidebar {
-  width: 280px;
   background: var(--bg-sidebar);
   border-right: 1px solid var(--border-main);
   display: flex;
@@ -2234,4 +2233,186 @@ body {
 .cookie-value-text.expanded {
   white-space: normal;
   word-break: break-all;
+}
+
+/* --- New Sidebar Layout --- */
+.sidebar-container {
+  width: 320px;
+  background: var(--bg-sidebar);
+  border-right: 1px solid var(--border-main);
+  display: flex;
+  flex-direction: row;
+}
+
+.activity-bar {
+  width: 48px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  border-right: 1px solid var(--border-subtle);
+  background: var(--bg-app);
+  padding: 8px 0;
+  flex-shrink: 0;
+}
+
+.activity-top, .activity-bottom {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.activity-item {
+  width: 36px;
+  height: 36px;
+  border-radius: 6px;
+  display: grid;
+  place-items: center;
+  color: var(--text-muted);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.activity-item:hover {
+  color: var(--text-main);
+  background: var(--bg-hover);
+}
+
+.activity-item.active {
+  color: var(--primary);
+  background: var(--bg-active);
+}
+
+.sidebar-panel {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0; /* Important for text truncation */
+}
+
+/* Environments Panel */
+.environments-panel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.panel-title {
+  font-weight: 600;
+  font-size: 0.8rem;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.panel-action {
+  width: 24px;
+  height: 24px;
+  border-radius: 4px;
+  display: grid;
+  place-items: center;
+  color: var(--text-muted);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+}
+
+.panel-action:hover {
+  color: var(--text-main);
+  background: var(--bg-hover);
+}
+
+.panel-list {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  padding: 8px;
+  gap: 2px;
+}
+
+.panel-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: transparent;
+  border: 1px solid transparent;
+  cursor: pointer;
+  text-align: left;
+  transition: all 0.2s;
+}
+
+.panel-item:hover {
+  background: var(--bg-hover);
+}
+
+.panel-item.active {
+  background: var(--bg-active);
+  border-color: var(--border-subtle);
+}
+
+.panel-item-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  overflow: hidden;
+}
+
+.panel-item-name {
+  font-size: 0.9rem;
+  color: var(--text-main);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.panel-item-meta {
+  font-size: 0.7rem;
+  color: var(--text-dim);
+}
+
+.panel-item-actions {
+  display: flex;
+  gap: 4px;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.panel-item:hover .panel-item-actions {
+  opacity: 1;
+}
+
+.panel-item-action {
+  width: 20px;
+  height: 20px;
+  border-radius: 4px;
+  display: grid;
+  place-items: center;
+  color: var(--text-muted);
+  background: var(--bg-panel);
+  border: 1px solid var(--border-subtle);
+  cursor: pointer;
+}
+
+.panel-item-action:hover {
+  color: var(--text-main);
+  border-color: var(--primary);
+}
+
+.panel-item-action.danger:hover {
+  color: var(--error);
+  border-color: var(--danger-border);
 }
