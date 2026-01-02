@@ -1,10 +1,12 @@
 import Editor from "@monaco-editor/react";
+import { EnvInput } from "../Editors/EnvInput";
 import { KeyValueEditor } from "../Editors/KeyValueEditor";
 import { AuthData, AuthDataType, AuthType, BodyType, CookieEntry, KeyValue, RawType, RequestSettings } from "../../types";
 
 interface RequestPaneProps {
   activeTab: string;
   onTabChange: (tab: string) => void;
+  environmentValues: Record<string, string>;
   
   params: KeyValue[];
   onParamsChange: (idx: number, field: keyof KeyValue, val: string | boolean) => void;
@@ -73,6 +75,7 @@ const TabButton = ({ active, label, onClick }: { active: boolean; label: string;
 export const RequestPane = (props: RequestPaneProps) => {
   const { 
       activeTab, onTabChange, 
+      environmentValues,
       params, onParamsChange, onParamsRemove,
       headers, onHeadersChange, onHeadersRemove,
       cookieContext, cookies, onCookieAdd, onCookieUpdate, onCookieRemove,
@@ -84,6 +87,23 @@ export const RequestPane = (props: RequestPaneProps) => {
       bodyUrlEncoded, onBodyUrlEncodedChange, onBodyUrlEncodedRemove,
       settings, onSettingsChange
   } = props;
+
+  const getTemplateTooltip = (value: string) => {
+    if (!value) {
+      return undefined;
+    }
+    const matches = [...value.matchAll(/{{\s*([a-zA-Z0-9_.-]+)\s*}}/g)];
+    if (matches.length === 0) {
+      return undefined;
+    }
+    const keys = Array.from(new Set(matches.map((match) => match[1]))).filter(
+      (key) => Object.prototype.hasOwnProperty.call(environmentValues, key)
+    );
+    if (keys.length === 0) {
+      return undefined;
+    }
+    return keys.map((key) => `{{${key}}} = ${environmentValues[key]}`).join("\n");
+  };
 
   const formatDate = (timestamp: number | null) => {
     if (!timestamp) {
@@ -120,7 +140,12 @@ export const RequestPane = (props: RequestPaneProps) => {
       </div>
       <div className="pane-content">
         {activeTab === "Params" && (
-          <KeyValueEditor items={params} onChange={onParamsChange} onRemove={onParamsRemove} />
+          <KeyValueEditor
+            items={params}
+            onChange={onParamsChange}
+            onRemove={onParamsRemove}
+            environmentValues={environmentValues}
+          />
         )}
 
         {activeTab === "Authorization" && (
@@ -160,22 +185,28 @@ export const RequestPane = (props: RequestPaneProps) => {
                   <div className="kv-editor">
                      <div style={{ marginBottom: 12 }}>
                         <label style={{ display: "block", fontSize: "0.8rem", color: "var(--text-muted)", marginBottom: 6 }}>Key</label>
-                        <input 
-                          className="input-ghost" 
+                        <EnvInput 
+                          className="input-ghost"
+                          overlayClassName="env-overlay-ghost"
                           style={{ background: "var(--bg-input)" }}
                           placeholder="Key"
                           value={authData.apiKey.key}
-                          onChange={(e) => onAuthDataChange("api-key", "key", e.target.value)}
+                          environmentValues={environmentValues}
+                          title={getTemplateTooltip(authData.apiKey.key)}
+                          onChange={(value) => onAuthDataChange("api-key", "key", value)}
                         />
                      </div>
                      <div style={{ marginBottom: 12 }}>
                         <label style={{ display: "block", fontSize: "0.8rem", color: "var(--text-muted)", marginBottom: 6 }}>Value</label>
-                        <input 
+                        <EnvInput 
                           className="input-ghost"
+                          overlayClassName="env-overlay-ghost"
                           style={{ background: "var(--bg-input)" }} 
                           placeholder="Value"
                           value={authData.apiKey.value}
-                          onChange={(e) => onAuthDataChange("api-key", "value", e.target.value)}
+                          environmentValues={environmentValues}
+                          title={getTemplateTooltip(authData.apiKey.value)}
+                          onChange={(value) => onAuthDataChange("api-key", "value", value)}
                         />
                      </div>
                      <div>
@@ -197,12 +228,16 @@ export const RequestPane = (props: RequestPaneProps) => {
                    <div className="kv-editor">
                       <div>
                         <label style={{ display: "block", fontSize: "0.8rem", color: "var(--text-muted)", marginBottom: 6 }}>Token</label>
-                        <textarea 
+                        <EnvInput 
+                          as="textarea"
                           className="code-editor"
+                          overlayClassName="env-overlay-code"
                           style={{ height: 150 }} 
                           placeholder="Bearer Token"
                           value={authData.bearer.token}
-                          onChange={(e) => onAuthDataChange("bearer", "token", e.target.value)}
+                          environmentValues={environmentValues}
+                          title={getTemplateTooltip(authData.bearer.token)}
+                          onChange={(value) => onAuthDataChange("bearer", "token", value)}
                         />
                      </div>
                    </div>
@@ -212,23 +247,29 @@ export const RequestPane = (props: RequestPaneProps) => {
                    <div className="kv-editor">
                       <div style={{ marginBottom: 12 }}>
                         <label style={{ display: "block", fontSize: "0.8rem", color: "var(--text-muted)", marginBottom: 6 }}>Username</label>
-                        <input 
+                        <EnvInput 
                           className="input-ghost"
+                          overlayClassName="env-overlay-ghost"
                           style={{ background: "var(--bg-input)" }} 
                           placeholder="Username"
                           value={authData.basic.username}
-                          onChange={(e) => onAuthDataChange("basic", "username", e.target.value)}
+                          environmentValues={environmentValues}
+                          title={getTemplateTooltip(authData.basic.username)}
+                          onChange={(value) => onAuthDataChange("basic", "username", value)}
                         />
                      </div>
                      <div>
                         <label style={{ display: "block", fontSize: "0.8rem", color: "var(--text-muted)", marginBottom: 6 }}>Password</label>
-                        <input 
+                        <EnvInput 
                           className="input-ghost"
+                          overlayClassName="env-overlay-ghost"
                           style={{ background: "var(--bg-input)" }} 
                           type="password"
                           placeholder="Password"
                           value={authData.basic.password}
-                          onChange={(e) => onAuthDataChange("basic", "password", e.target.value)}
+                          environmentValues={environmentValues}
+                          title={getTemplateTooltip(authData.basic.password)}
+                          onChange={(value) => onAuthDataChange("basic", "password", value)}
                         />
                      </div>
                    </div>
@@ -238,7 +279,12 @@ export const RequestPane = (props: RequestPaneProps) => {
         )}
 
         {activeTab === "Headers" && (
-          <KeyValueEditor items={headers} onChange={onHeadersChange} onRemove={onHeadersRemove} />
+          <KeyValueEditor
+            items={headers}
+            onChange={onHeadersChange}
+            onRemove={onHeadersRemove}
+            environmentValues={environmentValues}
+          />
         )}
 
         {activeTab === "Cookies" && (
@@ -429,12 +475,22 @@ export const RequestPane = (props: RequestPaneProps) => {
               )}
               {bodyType === "form-data" && (
                 <div style={{ padding: 10 }}>
-                  <KeyValueEditor items={bodyFormData} onChange={onBodyFormDataChange} onRemove={onBodyFormDataRemove} />
+                  <KeyValueEditor
+                    items={bodyFormData}
+                    onChange={onBodyFormDataChange}
+                    onRemove={onBodyFormDataRemove}
+                    environmentValues={environmentValues}
+                  />
                 </div>
               )}
               {bodyType === "x-www-form-urlencoded" && (
                 <div style={{ padding: 10 }}>
-                  <KeyValueEditor items={bodyUrlEncoded} onChange={onBodyUrlEncodedChange} onRemove={onBodyUrlEncodedRemove} />
+                  <KeyValueEditor
+                    items={bodyUrlEncoded}
+                    onChange={onBodyUrlEncodedChange}
+                    onRemove={onBodyUrlEncodedRemove}
+                    environmentValues={environmentValues}
+                  />
                 </div>
               )}
               {bodyType === "binary" && (

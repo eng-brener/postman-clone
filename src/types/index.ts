@@ -4,9 +4,17 @@ export type KeyValue = {
   enabled: boolean;
 };
 
+export type Environment = {
+  id: string;
+  name: string;
+  variables: KeyValue[];
+};
+
 export type BodyType = "none" | "form-data" | "x-www-form-urlencoded" | "raw" | "binary";
 
 export type RawType = "text" | "javascript" | "json" | "html" | "xml";
+
+export type RequestType = "http" | "grpc";
 
 export type RequestSettings = {
   httpVersion: "HTTP/1.1" | "HTTP/2";
@@ -49,6 +57,7 @@ export type HistoryItem = {
 };
 
 export type RequestData = {
+  requestType: RequestType;
   method: string;
   url: string;
   params: KeyValue[];

@@ -72,6 +72,7 @@ interface ResponsePaneProps {
   responsePretty: string;
   responseHeaders: [string, string][];
   errorMessage: string | null;
+  responseLanguage: string;
 }
 
 const TabButton = ({ active, label, onClick }: { active: boolean; label: string; onClick: () => void }) => (
@@ -84,7 +85,7 @@ export const ResponsePane = (props: ResponsePaneProps) => {
   const { 
     activeTab, onTabChange, 
     responseCode, responseStatus, responseTime, responseSize, 
-    responseRaw, responsePretty, responseHeaders, errorMessage 
+    responseRaw, responsePretty, responseHeaders, errorMessage, responseLanguage
   } = props;
   const [expandedCookieValues, setExpandedCookieValues] = useState<Set<string>>(new Set());
   const [expandedCookieNames, setExpandedCookieNames] = useState<Set<string>>(new Set());
@@ -190,9 +191,9 @@ export const ResponsePane = (props: ResponsePaneProps) => {
               <div style={{ height: '100%' }}>
                 <Editor
                   height="100%"
-                  language="json"
+                  language={responseLanguage}
                   theme="vs-dark"
-                  value={responsePretty || responseRaw}
+                  value={responseLanguage === "json" ? responsePretty || responseRaw : responseRaw}
                   options={{
                     readOnly: true,
                     minimap: { enabled: false },

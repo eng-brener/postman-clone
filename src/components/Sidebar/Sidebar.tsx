@@ -11,7 +11,16 @@ import {
   useRef,
   useState,
 } from "react";
-import { CollectionNode, CollectionRequest, HistoryItem, RequestData } from "../../types";
+import { KeyValueEditor } from "../Editors/KeyValueEditor";
+import {
+  CollectionNode,
+  CollectionRequest,
+  Environment,
+  HistoryItem,
+  KeyValue,
+  RequestData,
+  RequestType,
+} from "../../types";
 
 interface SidebarProps {
   appName: string;
@@ -21,9 +30,17 @@ interface SidebarProps {
   currentMethod: string;
   collectionNodes: CollectionNode[];
   setCollectionNodes: Dispatch<SetStateAction<CollectionNode[]>>;
-  buildRequestData: (method: string, url: string) => RequestData;
+  buildRequestData: (method: string, url: string, requestType?: RequestType) => RequestData;
   onSelectRequest: (request: CollectionRequest) => void;
   onSelectHistory: (method: string, url: string) => void;
+  environments: Environment[];
+  activeEnvironmentId: string | null;
+  onEnvironmentChange: (id: string | null) => void;
+  onEnvironmentAdd: () => void;
+  onEnvironmentRename: (id: string, name: string) => void;
+  onEnvironmentDelete: (id: string) => void;
+  onEnvironmentVarChange: (id: string, idx: number, field: keyof KeyValue, val: string | boolean) => void;
+  onEnvironmentVarRemove: (id: string, idx: number) => void;
 }
 
 const MethodBadge = ({ method }: { method: string }) => {
@@ -87,6 +104,14 @@ export const Sidebar = ({
   buildRequestData,
   onSelectRequest,
   onSelectHistory,
+  environments,
+  activeEnvironmentId,
+  onEnvironmentChange,
+  onEnvironmentAdd,
+  onEnvironmentRename,
+  onEnvironmentDelete,
+  onEnvironmentVarChange,
+  onEnvironmentVarRemove,
 }: SidebarProps) => {
   const defaultOpen = useMemo(() => {
     const openMap: Record<string, boolean> = {};
@@ -140,6 +165,7 @@ export const Sidebar = ({
     parentId: string | null;
     type: "folder" | "request";
     name: string;
+    requestType: RequestType;
     method: string;
     url: string;
   } | null>(null);
@@ -167,9 +193,11 @@ export const Sidebar = ({
   const [dropInvalidId, setDropInvalidId] = useState<string | null>(null);
   const [historyOpen, setHistoryOpen] = useState(true);
   const [settingsModalOpen, setSettingsModalOpen] = useState(false);
+  const [envModalOpen, setEnvModalOpen] = useState(false);
   const [settingsTab, setSettingsTab] = useState<"general" | "about">("general");
   const renameInputRef = useRef<HTMLInputElement | null>(null);
   const renameFocusRef = useRef(false);
+  const activeEnvironment = environments.find((env) => env.id === activeEnvironmentId) ?? null;
 
   useEffect(() => {
     const closeMenu = () => setContextMenu(null);
@@ -739,6 +767,7 @@ export const Sidebar = ({
       parentId,
       type,
       name: type === "folder" ? "New Folder" : "New Request",
+      requestType: "http",
       method: "GET",
       url: "https://example.com",
     });
@@ -779,7 +808,11 @@ export const Sidebar = ({
             id,
             type: "request",
             name,
-            request: buildRequestData(createModal.method, createModal.url.trim() || "https://example.com"),
+            request: buildRequestData(
+              createModal.method,
+              createModal.url.trim() || "https://example.com",
+              createModal.requestType
+            ),
           };
 
     setCollectionNodes((prev) => addNode(prev, createModal.parentId, newNode));
@@ -957,6 +990,32 @@ export const Sidebar = ({
         <div className="brand">
           <Layers className="logo-icon" size={20} />
           <span>{appName}</span>
+        </div>
+        <div className="sidebar-env">
+          <select
+            className="env-select"
+            value={activeEnvironmentId ?? ""}
+            onChange={(event) => {
+              const nextValue = event.target.value;
+              if (nextValue === "__settings__") {
+                setEnvModalOpen(true);
+                return;
+              }
+              onEnvironmentChange(nextValue || null);
+            }}
+            aria-label="Active environment"
+          >
+            <option value="">No Environment</option>
+            {environments.map((env) => (
+              <option key={env.id} value={env.id}>
+                {env.name || "Environment"}
+              </option>
+            ))}
+            <option value="__separator__" disabled>
+              ──────────
+            </option>
+            <option value="__settings__">Settings</option>
+          </select>
         </div>
       </div>
 
@@ -1174,6 +1233,30 @@ export const Sidebar = ({
               />
               {createModal.type === "request" && (
                 <>
+                  <label className="modal-label" htmlFor="create-type-input">
+                    Type
+                  </label>
+                  <select
+                    id="create-type-input"
+                    className="modal-input"
+                    value={createModal.requestType}
+                    onChange={(event) =>
+                      setCreateModal((prev) => {
+                        if (!prev) {
+                          return prev;
+                        }
+                        const nextType = event.target.value as RequestType;
+                        const nextMethod =
+                          nextType === "grpc" ? "GRPC" : prev.method === "GRPC" ? "GET" : prev.method;
+                        return { ...prev, requestType: nextType, method: nextMethod };
+                      })
+                    }
+                  >
+                    <option value="http">HTTP</option>
+                    <option value="grpc">gRPC</option>
+                  </select>
+                  {createModal.requestType === "http" ? (
+                    <>
                   <label className="modal-label" htmlFor="create-method-input">
                     Method
                   </label>
@@ -1190,6 +1273,8 @@ export const Sidebar = ({
                     <option value="PUT">PUT</option>
                     <option value="PATCH">PATCH</option>
                     <option value="DELETE">DELETE</option>
+                    <option value="HEAD">HEAD</option>
+                    <option value="OPTIONS">OPTIONS</option>
                   </select>
                   <label className="modal-label" htmlFor="create-url-input">
                     URL
@@ -1202,6 +1287,10 @@ export const Sidebar = ({
                       setCreateModal((prev) => (prev ? { ...prev, url: event.target.value } : prev))
                     }
                   />
+                    </>
+                  ) : (
+                    <div className="modal-text">gRPC request builder coming soon.</div>
+                  )}
                 </>
               )}
               <div className="modal-actions">
@@ -1310,6 +1399,98 @@ export const Sidebar = ({
             </div>
             <div className="modal-actions">
               <button type="button" className="modal-button ghost" onClick={() => setSettingsModalOpen(false)}>
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {envModalOpen && (
+        <div className="modal-overlay" onClick={() => setEnvModalOpen(false)}>
+          <div className="modal env-modal" onClick={(event) => event.stopPropagation()}>
+            <div className="modal-header">Environments</div>
+            <div className="env-modal-body">
+              <div className="env-modal-sidebar">
+                <div className="env-sidebar-header">
+                  <span>Environments</span>
+                  <button type="button" className="env-button" onClick={onEnvironmentAdd}>
+                    + New
+                  </button>
+                </div>
+                <div className="env-list">
+                  <button
+                    type="button"
+                    className={`env-list-item ${activeEnvironmentId ? "" : "active"}`}
+                    onClick={() => onEnvironmentChange(null)}
+                  >
+                    No Environment
+                  </button>
+                  {environments.map((env) => (
+                    <button
+                      key={env.id}
+                      type="button"
+                      className={`env-list-item ${activeEnvironmentId === env.id ? "active" : ""}`}
+                      onClick={() => onEnvironmentChange(env.id)}
+                    >
+                      <span className="env-list-name">{env.name || "Environment"}</span>
+                      <span className="env-list-meta">
+                        {env.variables.filter((item) => item.enabled && item.key.trim()).length} vars
+                      </span>
+                    </button>
+                  ))}
+                </div>
+                <div className="env-sidebar-hint">
+                  Use <code>{"{{variable}}"}</code> in URLs, headers, or bodies.
+                </div>
+              </div>
+              <div className="env-modal-main">
+                {activeEnvironment ? (
+                  <>
+                    <div className="env-main-header">
+                      <div className="env-name-field">
+                        <label className="modal-label" htmlFor="env-name-input">
+                          Name
+                        </label>
+                        <input
+                          id="env-name-input"
+                          className="modal-input"
+                          value={activeEnvironment.name}
+                          onChange={(event) => onEnvironmentRename(activeEnvironment.id, event.target.value)}
+                        />
+                      </div>
+                      <div className="env-main-actions">
+                        <button
+                          type="button"
+                          className="env-button danger"
+                          onClick={() => onEnvironmentDelete(activeEnvironment.id)}
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    </div>
+                    <div className="env-vars-header">
+                      <div>
+                        <div className="env-vars-title">Variables</div>
+                        <div className="env-vars-subtitle">Set key/value pairs for this environment.</div>
+                      </div>
+                    </div>
+                    <KeyValueEditor
+                      items={activeEnvironment.variables}
+                      onChange={(idx, field, val) =>
+                        onEnvironmentVarChange(activeEnvironment.id, idx, field, val)
+                      }
+                      onRemove={(idx) => onEnvironmentVarRemove(activeEnvironment.id, idx)}
+                    />
+                  </>
+                ) : (
+                  <div className="empty-state env-empty-state">
+                    Select an environment to edit variables.
+                  </div>
+                )}
+              </div>
+            </div>
+            <div className="modal-actions">
+              <button type="button" className="modal-button ghost" onClick={() => setEnvModalOpen(false)}>
                 Close
               </button>
             </div>

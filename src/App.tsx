@@ -4,9 +4,8 @@ import { fetch as tauriFetch } from "@tauri-apps/plugin-http";
 import "./App.css";
 
 import { Sidebar } from "./components/Sidebar/Sidebar";
-import { UrlBar } from "./components/Workspace/UrlBar";
-import { RequestPane } from "./components/Workspace/RequestPane";
-import { ResponsePane } from "./components/Workspace/ResponsePane";
+import { GrpcWorkspace } from "./components/Workspace/GrpcWorkspace";
+import { HttpWorkspace } from "./components/Workspace/HttpWorkspace";
 
 import { useKeyValueList } from "./hooks/useKeyValueList";
 import {
@@ -17,11 +16,13 @@ import {
   CollectionNode,
   CollectionRequest,
   CookieEntry,
+  Environment,
   HistoryItem,
   KeyValue,
   RawType,
   RequestData,
   RequestSettings,
+  RequestType,
 } from "./types";
 
 const emptyRow = (): KeyValue => ({ key: "", value: "", enabled: true });
@@ -30,7 +31,6 @@ const createCookieId = () => `cookie-${Date.now()}-${Math.random().toString(16).
 const normalizeDomain = (domain: string) => domain.trim().toLowerCase().replace(/^\./, "");
 const isExpiredCookie = (cookie: CookieEntry, now = Date.now()) =>
   cookie.expires !== null && cookie.expires <= now;
-const COLLECTION_STORAGE_KEY = "postman-clone.collection";
 const isDomainMatch = (host: string, domain: string, hostOnly: boolean) => {
   if (host === domain) {
     return true;
@@ -70,6 +70,9 @@ const splitSetCookieHeader = (value: string) =>
     .split(/,(?=[^;]+=)/)
     .map((part) => part.trim())
     .filter(Boolean);
+const COLLECTION_STORAGE_KEY = "postman-clone.collection";
+const ENV_STORAGE_KEY = "postman-clone.environments";
+const ACTIVE_ENV_STORAGE_KEY = "postman-clone.environments.active";
 
 type ParsedCookie = Omit<CookieEntry, "id" | "enabled"> & { expired: boolean };
 
@@ -231,9 +234,52 @@ const buildUrlWithParams = (rawUrl: string, paramsList: KeyValue[]): string | nu
   }
 };
 
+const resolveTemplate = (value: string, variables: Record<string, string>) =>
+  value.replace(/{{\s*([a-zA-Z0-9_.-]+)\s*}}/g, (match, key) => {
+    if (Object.prototype.hasOwnProperty.call(variables, key)) {
+      return variables[key];
+    }
+    return match;
+  });
+
+const normalizeEnvironmentList = (value: unknown, fallback: Environment[]): Environment[] => {
+  if (!Array.isArray(value)) {
+    return fallback;
+  }
+  const normalized = value
+    .map((env) => {
+      if (!env || typeof env !== "object") {
+        return null;
+      }
+      const record = env as Partial<Environment>;
+      const id =
+        typeof record.id === "string" ? record.id : `env-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+      const name = typeof record.name === "string" ? record.name : "Environment";
+      const variables = Array.isArray(record.variables)
+        ? record.variables
+            .map((item) => {
+              if (!item || typeof item !== "object") {
+                return null;
+              }
+              const kv = item as Partial<KeyValue>;
+              return {
+                key: typeof kv.key === "string" ? kv.key : "",
+                value: typeof kv.value === "string" ? kv.value : "",
+                enabled: typeof kv.enabled === "boolean" ? kv.enabled : true,
+              } as KeyValue;
+            })
+            .filter((item): item is KeyValue => Boolean(item))
+        : [emptyRow()];
+      return { id, name, variables: variables.length > 0 ? variables : [emptyRow()] } as Environment;
+    })
+    .filter((env): env is Environment => Boolean(env));
+  return normalized.length > 0 ? normalized : fallback;
+};
+
 type RequestTab = {
   id: string;
   collectionId: string | null;
+  requestType: RequestType;
   method: string;
   url: string;
   params: KeyValue[];
@@ -254,6 +300,7 @@ type RequestTab = {
   responsePretty: string;
   responseHeaders: [string, string][];
   errorMessage: string | null;
+  responseLanguage: string;
 };
 
 function App() {
@@ -286,7 +333,8 @@ function App() {
     basic: { ...source.basic },
   });
 
-  const buildRequestData = (method: string, url: string): RequestData => ({
+  const buildRequestData = (method: string, url: string, requestType: RequestType = "http"): RequestData => ({
+    requestType,
     method,
     url,
     params: [emptyRow()],
@@ -300,6 +348,16 @@ function App() {
     bodyUrlEncoded: [emptyRow()],
     settings: { ...defaultSettings },
   });
+
+  const createEnvironment = (name = "New Environment"): Environment => ({
+    id: `env-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+    name,
+    variables: [emptyRow()],
+  });
+
+  const createDefaultEnvironments = (): Environment[] => [
+    { id: "env-default", name: "Base", variables: [emptyRow()] },
+  ];
 
   const normalizeKeyValueList = (value: unknown, fallback: KeyValue[]) => {
     if (!Array.isArray(value)) {
@@ -322,7 +380,9 @@ function App() {
   };
 
   const normalizeRequestData = (value: unknown): RequestData => {
-    const fallback = buildRequestData("GET", "https://example.com");
+    const rawRequestType = (value as Partial<RequestData> | null)?.requestType;
+    const requestType: RequestType = rawRequestType === "grpc" ? "grpc" : "http";
+    const fallback = buildRequestData(requestType === "grpc" ? "GRPC" : "GET", "https://example.com", requestType);
     if (!value || typeof value !== "object") {
       return fallback;
     }
@@ -331,6 +391,7 @@ function App() {
     const url = typeof record.url === "string" ? record.url : fallback.url;
     return {
       ...fallback,
+      requestType,
       method,
       url,
       params: normalizeKeyValueList(record.params, fallback.params),
@@ -442,6 +503,7 @@ function App() {
   const createDefaultTab = (): RequestTab => ({
     id: `tab-${Date.now()}-${Math.random().toString(16).slice(2)}`,
     collectionId: null,
+    requestType: "http",
     method: "GET",
     url: "https://catfact.ninja/fact",
     params: [emptyRow()],
@@ -462,6 +524,7 @@ function App() {
     responsePretty: "",
     responseHeaders: [],
     errorMessage: null,
+    responseLanguage: "plaintext",
   });
 
   const [collectionNodes, setCollectionNodes] = useState<CollectionNode[]>(() => {
@@ -489,10 +552,65 @@ function App() {
     }
   }, [collectionNodes]);
 
+  const [environments, setEnvironments] = useState<Environment[]>(() => {
+    if (typeof window === "undefined" || !("localStorage" in window)) {
+      return createDefaultEnvironments();
+    }
+    try {
+      const stored = window.localStorage.getItem(ENV_STORAGE_KEY);
+      if (!stored) {
+        return createDefaultEnvironments();
+      }
+      const parsed = JSON.parse(stored);
+      return normalizeEnvironmentList(parsed, createDefaultEnvironments());
+    } catch {
+      return createDefaultEnvironments();
+    }
+  });
+
+  const [activeEnvironmentId, setActiveEnvironmentId] = useState<string | null>(() => {
+    if (typeof window === "undefined" || !("localStorage" in window)) {
+      return "env-default";
+    }
+    try {
+      const stored = window.localStorage.getItem(ACTIVE_ENV_STORAGE_KEY);
+      return stored || "env-default";
+    } catch {
+      return "env-default";
+    }
+  });
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(ENV_STORAGE_KEY, JSON.stringify(environments));
+    } catch {
+      // ignore persistence failures
+    }
+  }, [environments]);
+
+  useEffect(() => {
+    try {
+      if (activeEnvironmentId) {
+        window.localStorage.setItem(ACTIVE_ENV_STORAGE_KEY, activeEnvironmentId);
+      } else {
+        window.localStorage.removeItem(ACTIVE_ENV_STORAGE_KEY);
+      }
+    } catch {
+      // ignore persistence failures
+    }
+  }, [activeEnvironmentId]);
+
+  useEffect(() => {
+    if (activeEnvironmentId && !environments.some((env) => env.id === activeEnvironmentId)) {
+      setActiveEnvironmentId(environments[0]?.id ?? null);
+    }
+  }, [activeEnvironmentId, environments]);
+
   const [tabs, setTabs] = useState<RequestTab[]>([createDefaultTab()]);
   const [activeTabId, setActiveTabId] = useState<string | null>(tabs[0].id);
 
   // Request State
+  const [requestType, setRequestType] = useState<RequestType>(tabs[0].requestType);
   const [method, setMethod] = useState(tabs[0].method);
   const [url, setUrl] = useState(tabs[0].url);
   const [isSending, setIsSending] = useState(false);
@@ -528,6 +646,7 @@ function App() {
   const [responsePretty, setResponsePretty] = useState(tabs[0].responsePretty);
   const [responseHeaders, setResponseHeaders] = useState<[string, string][]>(tabs[0].responseHeaders);
   const [errorMessage, setErrorMessage] = useState<string | null>(tabs[0].errorMessage);
+  const [responseLanguage, setResponseLanguage] = useState(tabs[0].responseLanguage);
   
   // History
   const [history, setHistory] = useState<HistoryItem[]>([]);
@@ -537,29 +656,56 @@ function App() {
     getVersion().then(setAppVersion).catch(() => {});
   }, []);
 
+  const activeEnvironment = useMemo(
+    () => environments.find((env) => env.id === activeEnvironmentId) ?? null,
+    [environments, activeEnvironmentId]
+  );
+
+  const environmentValues = useMemo(() => {
+    if (!activeEnvironment) {
+      return {};
+    }
+    return activeEnvironment.variables.reduce<Record<string, string>>((acc, item) => {
+      const key = item.key.trim();
+      if (!item.enabled || !key) {
+        return acc;
+      }
+      acc[key] = item.value;
+      return acc;
+    }, {});
+  }, [activeEnvironment]);
+
   // Derived State
   const requestUrl = useMemo(() => {
     try {
-      const base = new URL(url);
+      const resolvedUrl = resolveTemplate(url, environmentValues);
+      const base = new URL(resolvedUrl);
       base.search = "";
       
       // Add Params
       params
         .filter((item) => item.enabled && item.key.trim())
         .forEach((item) => {
-          base.searchParams.append(item.key.trim(), item.value);
+          const key = resolveTemplate(item.key.trim(), environmentValues);
+          const value = resolveTemplate(item.value, environmentValues);
+          base.searchParams.append(key, value);
         });
 
       // Add Auth (Query Params)
       if (authType === "api-key" && authData.apiKey.addTo === "query" && authData.apiKey.key) {
-        base.searchParams.set(authData.apiKey.key, authData.apiKey.value);
+        const key = resolveTemplate(authData.apiKey.key, environmentValues);
+        const value = resolveTemplate(authData.apiKey.value, environmentValues);
+        if (key) {
+          base.searchParams.set(key, value);
+        }
       }
       
       return base.toString();
     } catch {
-      return url;
+      const resolvedFallback = resolveTemplate(url, environmentValues);
+      return resolvedFallback || url;
     }
-  }, [url, params, authType, authData]);
+  }, [url, params, authType, authData, environmentValues]);
 
   const cookieContext = useMemo(() => {
     try {
@@ -575,6 +721,7 @@ function App() {
   }, [requestUrl]);
 
   const applyRequestData = (data: RequestData) => {
+    setRequestType(data.requestType);
     setMethod(data.method);
     setUrl(data.url);
     setSettings({ ...data.settings });
@@ -590,6 +737,7 @@ function App() {
   };
 
   const tabToRequestData = (tab: RequestTab): RequestData => ({
+    requestType: tab.requestType,
     method: tab.method,
     url: tab.url,
     params: cloneKeyValues(tab.params),
@@ -683,7 +831,10 @@ function App() {
     headers
       .filter((item) => item.enabled && item.key.trim())
       .forEach((item) => {
-        result[item.key.trim()] = item.value;
+        const key = resolveTemplate(item.key.trim(), environmentValues);
+        if (key) {
+          result[key] = resolveTemplate(item.value, environmentValues);
+        }
       });
 
     const requestInfo = (() => {
@@ -709,11 +860,17 @@ function App() {
 
     // Add Auth (Headers)
     if (authType === "api-key" && authData.apiKey.addTo === "header" && authData.apiKey.key) {
-      result[authData.apiKey.key] = authData.apiKey.value;
+      const key = resolveTemplate(authData.apiKey.key, environmentValues);
+      if (key) {
+        result[key] = resolveTemplate(authData.apiKey.value, environmentValues);
+      }
     } else if (authType === "bearer" && authData.bearer.token) {
-      result["Authorization"] = `Bearer ${authData.bearer.token}`;
+      const token = resolveTemplate(authData.bearer.token, environmentValues);
+      result["Authorization"] = `Bearer ${token}`;
     } else if (authType === "basic" && authData.basic.username) {
-      const credentials = btoa(`${authData.basic.username}:${authData.basic.password}`);
+      const username = resolveTemplate(authData.basic.username, environmentValues);
+      const password = resolveTemplate(authData.basic.password, environmentValues);
+      const credentials = btoa(`${username}:${password}`);
       result["Authorization"] = `Basic ${credentials}`;
     }
 
@@ -734,7 +891,7 @@ function App() {
     }
     
     return result;
-  }, [headers, bodyType, rawType, activeReqTab, authType, authData, cookieJar, requestUrl]);
+  }, [headers, bodyType, rawType, activeReqTab, authType, authData, cookieJar, requestUrl, environmentValues]);
 
   const updateActiveTab = (updater: (tab: RequestTab) => RequestTab) => {
     if (!activeTabId) {
@@ -773,6 +930,56 @@ function App() {
       return [emptyRow()];
     }
     return list.filter((_, idx) => idx !== index);
+  };
+
+  const handleEnvironmentChange = (id: string | null) => {
+    setActiveEnvironmentId(id);
+  };
+
+  const handleEnvironmentAdd = () => {
+    const next = createEnvironment();
+    setEnvironments((prev) => [...prev, next]);
+    setActiveEnvironmentId(next.id);
+  };
+
+  const handleEnvironmentRename = (id: string, name: string) => {
+    setEnvironments((prev) => prev.map((env) => (env.id === id ? { ...env, name } : env)));
+  };
+
+  const handleEnvironmentDelete = (id: string) => {
+    setEnvironments((prev) => {
+      const next = prev.filter((env) => env.id !== id);
+      setActiveEnvironmentId((current) => {
+        if (current !== id) {
+          return current;
+        }
+        return next[0]?.id ?? null;
+      });
+      return next;
+    });
+  };
+
+  const handleEnvironmentVarChange = (
+    id: string,
+    idx: number,
+    field: keyof KeyValue,
+    val: string | boolean
+  ) => {
+    setEnvironments((prev) =>
+      prev.map((env) =>
+        env.id === id
+          ? { ...env, variables: updateKeyValueList(env.variables, idx, field, val) }
+          : env
+      )
+    );
+  };
+
+  const handleEnvironmentVarRemove = (id: string, idx: number) => {
+    setEnvironments((prev) =>
+      prev.map((env) =>
+        env.id === id ? { ...env, variables: removeKeyValueItem(env.variables, idx) } : env
+      )
+    );
   };
 
   const handleMethodChange = (next: string) => {
@@ -901,6 +1108,7 @@ function App() {
   };
 
   const loadTab = (tab: RequestTab) => {
+    setRequestType(tab.requestType);
     setMethod(tab.method);
     setUrl(tab.url);
     setSettings(tab.settings);
@@ -921,6 +1129,7 @@ function App() {
     setResponsePretty(tab.responsePretty);
     setResponseHeaders(tab.responseHeaders);
     setErrorMessage(tab.errorMessage);
+    setResponseLanguage(tab.responseLanguage);
   };
 
   useEffect(() => {
@@ -973,6 +1182,31 @@ function App() {
     });
   };
 
+  const getResponseLanguage = (contentType: string | null, rawText: string) => {
+    const normalized = contentType ? contentType.split(";")[0].trim().toLowerCase() : "";
+    if (normalized.includes("json")) {
+      return "json";
+    }
+    if (normalized.includes("xml")) {
+      return "xml";
+    }
+    if (normalized.includes("html")) {
+      return "html";
+    }
+    if (normalized.includes("javascript") || normalized.includes("ecmascript")) {
+      return "javascript";
+    }
+    if (normalized.startsWith("text/")) {
+      return "plaintext";
+    }
+    try {
+      JSON.parse(rawText);
+      return "json";
+    } catch {
+      return "plaintext";
+    }
+  };
+
   const sendRequest = async () => {
     setIsSending(true);
     setErrorMessage(null);
@@ -980,17 +1214,21 @@ function App() {
     const start = performance.now();
 
     try {
-      const bodyAllowed = method !== "GET" && method !== "DELETE";
+      const bodyAllowed = !["GET", "HEAD"].includes(method);
       let payload: BodyInit | undefined = undefined;
 
       if (bodyAllowed && activeReqTab === "Body") {
         if (bodyType === "raw") {
-          payload = bodyJson;
+          payload = resolveTemplate(bodyJson, environmentValues);
         } else if (bodyType === "form-data") {
            const formData = new FormData();
            bodyFormData.forEach(item => {
              if (item.enabled && item.key.trim()) {
-               formData.append(item.key.trim(), item.value);
+               const key = resolveTemplate(item.key.trim(), environmentValues);
+               const value = resolveTemplate(item.value, environmentValues);
+               if (key) {
+                 formData.append(key, value);
+               }
              }
            });
            payload = formData;
@@ -998,7 +1236,11 @@ function App() {
            const urlEncoded = new URLSearchParams();
            bodyUrlEncoded.forEach(item => {
              if (item.enabled && item.key.trim()) {
-               urlEncoded.append(item.key.trim(), item.value);
+               const key = resolveTemplate(item.key.trim(), environmentValues);
+               const value = resolveTemplate(item.value, environmentValues);
+               if (key) {
+                 urlEncoded.append(key, value);
+               }
              }
            });
            payload = urlEncoded.toString();
@@ -1054,14 +1296,19 @@ function App() {
         }
       }
 
+      const contentType = response.headers.get("content-type");
+      const responseLang = getResponseLanguage(contentType, rawText);
       let formatted = rawText;
-      try {
-        const parsed = JSON.parse(rawText);
-        formatted = JSON.stringify(parsed, null, 2);
-      } catch {
-        // Not JSON
+      if (responseLang === "json") {
+        try {
+          const parsed = JSON.parse(rawText);
+          formatted = JSON.stringify(parsed, null, 2);
+        } catch {
+          // Not valid JSON
+        }
       }
       setResponsePretty(formatted);
+      setResponseLanguage(responseLang);
 
       updateActiveTab((tab) => ({
         ...tab,
@@ -1073,6 +1320,7 @@ function App() {
         responsePretty: formatted,
         responseHeaders: headersList,
         errorMessage: null,
+        responseLanguage: responseLang,
       }));
 
       // Add to history
@@ -1089,6 +1337,7 @@ function App() {
       const message = error.toString();
       setErrorMessage(message);
       setResponseRaw(message);
+      setResponseLanguage("plaintext");
       updateActiveTab((tab) => ({
         ...tab,
         responseCode: null,
@@ -1099,6 +1348,7 @@ function App() {
         responsePretty: message,
         responseHeaders: [],
         errorMessage: message,
+        responseLanguage: "plaintext",
       }));
     } finally {
       setIsSending(false);
@@ -1115,6 +1365,7 @@ function App() {
     const nextTab: RequestTab = {
       id: `tab-${Date.now()}-${Math.random().toString(16).slice(2)}`,
       collectionId: request.id,
+      requestType: request.request.requestType,
       method: request.request.method,
       url: request.request.url,
       params: cloneKeyValues(request.request.params),
@@ -1135,6 +1386,7 @@ function App() {
       responsePretty: "",
       responseHeaders: [],
       errorMessage: null,
+      responseLanguage: "plaintext",
     };
     setTabs((prev) => [...prev, nextTab]);
     setActiveTabId(nextTab.id);
@@ -1147,6 +1399,7 @@ function App() {
       const data = buildRequestData(m, u);
       const next: RequestTab = {
         ...createDefaultTab(),
+        requestType: data.requestType,
         method: data.method,
         url: data.url,
         params: parsedParams ? cloneKeyValues(parsedParams) : cloneKeyValues(data.params),
@@ -1155,6 +1408,10 @@ function App() {
       setActiveTabId(next.id);
       loadTab(next);
       return;
+    }
+    if (requestType !== "http") {
+      setRequestType("http");
+      updateActiveTab((tab) => ({ ...tab, requestType: "http" }));
     }
     handleMethodChange(m);
     handleUrlChange(u);
@@ -1175,6 +1432,14 @@ function App() {
         buildRequestData={buildRequestData}
         onSelectRequest={handleSelectRequest}
         onSelectHistory={handleSelectHistory}
+        environments={environments}
+        activeEnvironmentId={activeEnvironmentId}
+        onEnvironmentChange={handleEnvironmentChange}
+        onEnvironmentAdd={handleEnvironmentAdd}
+        onEnvironmentRename={handleEnvironmentRename}
+        onEnvironmentDelete={handleEnvironmentDelete}
+        onEnvironmentVarChange={handleEnvironmentVarChange}
+        onEnvironmentVarRemove={handleEnvironmentVarRemove}
       />
 
       <main className="main-content">
@@ -1208,76 +1473,61 @@ function App() {
         </div>
 
         {hasActiveTab ? (
-          <>
-            <UrlBar 
-                method={method}
-                url={url}
-                isSending={isSending}
-                onMethodChange={handleMethodChange}
-                onUrlChange={handleUrlChange}
-                onSend={sendRequest}
+          requestType === "http" ? (
+            <HttpWorkspace
+              method={method}
+              url={url}
+              isSending={isSending}
+              onMethodChange={handleMethodChange}
+              onUrlChange={handleUrlChange}
+              onSend={sendRequest}
+              environmentValues={environmentValues}
+              activeRequestTab={activeReqTab}
+              onRequestTabChange={setActiveReqTab}
+              params={params}
+              onParamsChange={handleParamsChange}
+              onParamsRemove={handleParamsRemove}
+              headers={headers}
+              onHeadersChange={handleHeadersChange}
+              onHeadersRemove={handleHeadersRemove}
+              cookieContext={cookieContext ? { host: cookieContext.host, path: cookieContext.path } : null}
+              cookies={visibleCookies}
+              onCookieAdd={handleCookieAdd}
+              onCookieUpdate={handleCookieUpdate}
+              onCookieRemove={handleCookieRemove}
+              authType={authType}
+              onAuthTypeChange={handleAuthTypeChange}
+              authData={authData}
+              onAuthDataChange={handleAuthDataChange}
+              bodyType={bodyType}
+              onBodyTypeChange={handleBodyTypeChange}
+              rawType={rawType}
+              onRawTypeChange={handleRawTypeChange}
+              bodyJson={bodyJson}
+              onBodyJsonChange={handleBodyJsonChange}
+              bodyFormData={bodyFormData}
+              onBodyFormDataChange={handleBodyFormDataChange}
+              onBodyFormDataRemove={handleBodyFormDataRemove}
+              bodyUrlEncoded={bodyUrlEncoded}
+              onBodyUrlEncodedChange={handleBodyUrlEncodedChange}
+              onBodyUrlEncodedRemove={handleBodyUrlEncodedRemove}
+              settings={settings}
+              onSettingsChange={handleSettingsChange}
+              activeResponseTab={activeResTab}
+              onResponseTabChange={setActiveResTab}
+              responseCode={responseCode}
+              responseStatus={responseStatus}
+              responseTime={responseTime}
+              responseSize={responseSize}
+              responseRaw={responseRaw}
+              responsePretty={responsePretty}
+              responseHeaders={responseHeaders}
+              errorMessage={errorMessage}
+              responseLanguage={responseLanguage}
             />
-
-            <div className="workspace-grid">
-                <RequestPane 
-                    activeTab={activeReqTab}
-                    onTabChange={setActiveReqTab}
-                    
-                    params={params}
-                    onParamsChange={handleParamsChange}
-                    onParamsRemove={handleParamsRemove}
-
-                    headers={headers}
-                    onHeadersChange={handleHeadersChange}
-                    onHeadersRemove={handleHeadersRemove}
-
-                    cookieContext={cookieContext ? { host: cookieContext.host, path: cookieContext.path } : null}
-                    cookies={visibleCookies}
-                    onCookieAdd={handleCookieAdd}
-                    onCookieUpdate={handleCookieUpdate}
-                    onCookieRemove={handleCookieRemove}
-                    
-                    authType={authType}
-                    onAuthTypeChange={handleAuthTypeChange}
-                    authData={authData}
-                    onAuthDataChange={handleAuthDataChange}
-
-                    bodyType={bodyType}
-                    onBodyTypeChange={handleBodyTypeChange}
-
-                    rawType={rawType}
-                    onRawTypeChange={handleRawTypeChange}
-
-                    bodyJson={bodyJson}
-                    onBodyJsonChange={handleBodyJsonChange}
-
-                    bodyFormData={bodyFormData}
-                    onBodyFormDataChange={handleBodyFormDataChange}
-                    onBodyFormDataRemove={handleBodyFormDataRemove}
-
-                    bodyUrlEncoded={bodyUrlEncoded}
-                    onBodyUrlEncodedChange={handleBodyUrlEncodedChange}
-                    onBodyUrlEncodedRemove={handleBodyUrlEncodedRemove}
-
-                    settings={settings}
-                    onSettingsChange={handleSettingsChange}
-                />
-
-                <ResponsePane 
-                    activeTab={activeResTab}
-                    onTabChange={setActiveResTab}
-                    
-                    responseCode={responseCode}
-                    responseStatus={responseStatus}
-                    responseTime={responseTime}
-                    responseSize={responseSize}
-                    responseRaw={responseRaw}
-                    responsePretty={responsePretty}
-                    responseHeaders={responseHeaders}
-                    errorMessage={errorMessage}
-                />
-            </div>
-          </>
+          ) : (
+            <GrpcWorkspace />
+          )
         ) : (
           <div className="empty-workspace">
             <div className="empty-workspace-card">
