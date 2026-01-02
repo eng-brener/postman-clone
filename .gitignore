@@ -1,0 +1,40 @@
+# Node.js / Vite
+node_modules/
+dist/
+dist-ssr/
+*.local
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Rust / Tauri
+src-tauri/target/
+src-tauri/gen/schemas/
+src-tauri/capabilities/*.schema.json
+
+# Bundle outputs
+src-tauri/target/release/bundle/
+src-tauri/target/debug/bundle/
+
+# IDEs / Editors
+.vscode/*
+!.vscode/extensions.json
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+.DS_Store
+
+# OS related
+Thumbs.db
+db.lock
+desktop.ini
+
+# Environment variables
+.env
+.env.*
+!.env.example
