@@ -1,6 +1,6 @@
-import Editor from "@monaco-editor/react";
+import Editor, { useMonaco } from "@monaco-editor/react";
 import { Send, AlertCircle } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 type ParsedCookieRow = {
   name: string;
@@ -75,6 +75,7 @@ interface ResponsePaneProps {
   responseLanguage: string;
   followRedirects: boolean;
   onFollowRedirectsChange: (value: boolean) => void;
+  theme: "dark" | "light" | "dracula";
 }
 
 const TabButton = ({ active, label, onClick }: { active: boolean; label: string; onClick: () => void }) => (
@@ -88,8 +89,10 @@ export const ResponsePane = (props: ResponsePaneProps) => {
     activeTab, onTabChange, 
     responseCode, responseStatus, responseTime, responseSize, 
     responseRaw, responsePretty, responseHeaders, errorMessage, responseLanguage,
-    followRedirects, onFollowRedirectsChange
+    followRedirects, onFollowRedirectsChange, theme
   } = props;
+  const monaco = useMonaco();
+  const editorTheme = theme === "light" ? "vs" : theme === "dracula" ? "dracula" : "vs-dark";
   const [expandedCookieValues, setExpandedCookieValues] = useState<Set<string>>(new Set());
   const [expandedCookieNames, setExpandedCookieNames] = useState<Set<string>>(new Set());
   const [rawSearch, setRawSearch] = useState("");
@@ -162,6 +165,28 @@ export const ResponsePane = (props: ResponsePaneProps) => {
     return `${mb.toFixed(1)} MB`;
   };
 
+  useEffect(() => {
+    if (!monaco || theme !== "dracula") {
+      return;
+    }
+    monaco.editor.defineTheme("dracula", {
+      base: "vs-dark",
+      inherit: true,
+      rules: [
+        { token: "comment", foreground: "7c7f9b" },
+        { token: "string", foreground: "f1fa8c" },
+        { token: "number", foreground: "bd93f9" },
+        { token: "keyword", foreground: "ff79c6" },
+        { token: "type.identifier", foreground: "8be9fd" },
+      ],
+      colors: {
+        "editor.background": "#1b1d2a",
+        "editorLineNumber.foreground": "#5b5f7a",
+        "editorLineNumber.activeForeground": "#f8f8f2",
+      },
+    });
+  }, [monaco, theme]);
+
   return (
     <div className="response-pane" style={{ flex: 1, height: '100%' }}>
       <div className="pane-header">
@@ -233,7 +258,7 @@ export const ResponsePane = (props: ResponsePaneProps) => {
                 <Editor
                   height="100%"
                   language={responseLanguage}
-                  theme="vs-dark"
+                  theme={editorTheme}
                   value={responseLanguage === "json" ? responsePretty || responseRaw : responseRaw}
                   options={{
                     readOnly: true,

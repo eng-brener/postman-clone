@@ -1,5 +1,5 @@
-import Editor from "@monaco-editor/react";
-import { useMemo, useState } from "react";
+import Editor, { useMonaco } from "@monaco-editor/react";
+import { useEffect, useMemo, useState } from "react";
 import { EnvInput } from "../Editors/EnvInput";
 import { KeyValueEditor } from "../Editors/KeyValueEditor";
 import { AuthData, AuthDataType, AuthType, BodyType, CookieEntry, KeyValue, RawType, RequestSettings } from "../../types";
@@ -8,6 +8,7 @@ interface RequestPaneProps {
   activeTab: string;
   onTabChange: (tab: string) => void;
   environmentValues: Record<string, string>;
+  theme: "dark" | "light" | "dracula";
   
   params: KeyValue[];
   onParamsChange: (idx: number, field: keyof KeyValue, val: string | boolean) => void;
@@ -83,6 +84,7 @@ export const RequestPane = (props: RequestPaneProps) => {
   const { 
       activeTab, onTabChange, 
       environmentValues,
+      theme,
       params, onParamsChange, onParamsRemove, onParamsAdd, onParamsReplace,
       headers, onHeadersChange, onHeadersRemove, onHeadersAdd, onHeadersReplace,
       cookieContext, cookies, onCookieAdd, onCookieUpdate, onCookieRemove,
@@ -148,6 +150,31 @@ export const RequestPane = (props: RequestPaneProps) => {
     () => cookies.some((cookie) => cookie.sameSite === "None" && !cookie.secure),
     [cookies]
   );
+
+  const monaco = useMonaco();
+  const editorTheme = theme === "light" ? "vs" : theme === "dracula" ? "dracula" : "vs-dark";
+
+  useEffect(() => {
+    if (!monaco || theme !== "dracula") {
+      return;
+    }
+    monaco.editor.defineTheme("dracula", {
+      base: "vs-dark",
+      inherit: true,
+      rules: [
+        { token: "comment", foreground: "7c7f9b" },
+        { token: "string", foreground: "f1fa8c" },
+        { token: "number", foreground: "bd93f9" },
+        { token: "keyword", foreground: "ff79c6" },
+        { token: "type.identifier", foreground: "8be9fd" },
+      ],
+      colors: {
+        "editor.background": "#1b1d2a",
+        "editorLineNumber.foreground": "#5b5f7a",
+        "editorLineNumber.activeForeground": "#f8f8f2",
+      },
+    });
+  }, [monaco, theme]);
 
   return (
     <div className="request-pane">
@@ -520,7 +547,7 @@ export const RequestPane = (props: RequestPaneProps) => {
                   <Editor
                     height="100%"
                     language={rawType === "javascript" ? "javascript" : rawType}
-                    theme="vs-dark"
+                    theme={editorTheme}
                     value={bodyJson}
                     onChange={(value) => onBodyJsonChange(value || "")}
                     options={{

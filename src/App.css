@@ -22,8 +22,115 @@
   --warn: #fbbf24;
   --info: #60a5fa;
 
+  --text-on-primary: #0b0b0f;
+  --shadow-soft: 0 12px 32px rgba(0, 0, 0, 0.45);
+  --shadow-strong: 0 18px 50px rgba(0, 0, 0, 0.5);
+  --shadow-menu: 0 18px 40px rgba(0, 0, 0, 0.35);
+  --overlay-bg: rgba(12, 12, 14, 0.6);
+  --danger-bg: rgba(248, 113, 113, 0.15);
+  --danger-border: rgba(248, 113, 113, 0.4);
+  --warn-bg: rgba(251, 191, 36, 0.12);
+  --warn-bg-soft: rgba(251, 191, 36, 0.08);
+  --warn-border: rgba(251, 191, 36, 0.4);
+  --success-bg: rgba(52, 211, 153, 0.15);
+  --info-bg: rgba(96, 165, 250, 0.1);
+  --primary-bg: rgba(129, 140, 248, 0.15);
+  --muted-bg: rgba(148, 163, 184, 0.15);
+  --highlight-bg: rgba(250, 204, 21, 0.35);
+  --dot-shadow: 0 0 0 2px rgba(0, 0, 0, 0.25);
+  --panel-tint: rgba(35, 35, 38, 0.6);
+  --empty-state-bg: rgba(18, 18, 20, 0.5);
+
   --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   --font-mono: 'JetBrains Mono', 'Fira Code', Consolas, monospace;
+}
+
+html[data-theme="light"] {
+  color-scheme: light;
+  --bg-app: #f5f5f7;
+  --bg-sidebar: #ffffff;
+  --bg-panel: #f0f0f2;
+  --bg-input: #ffffff;
+  --bg-hover: #e9e9ee;
+  --bg-active: #dedee6;
+
+  --border-subtle: #e4e4ea;
+  --border-main: #d2d2da;
+
+  --primary: #2563eb;
+  --primary-hover: #1d4ed8;
+
+  --text-main: #18181b;
+  --text-muted: #52525b;
+  --text-dim: #a1a1aa;
+
+  --success: #16a34a;
+  --error: #dc2626;
+  --warn: #d97706;
+  --info: #2563eb;
+
+  --text-on-primary: #ffffff;
+  --shadow-soft: 0 12px 32px rgba(15, 23, 42, 0.12);
+  --shadow-strong: 0 18px 50px rgba(15, 23, 42, 0.18);
+  --shadow-menu: 0 18px 40px rgba(15, 23, 42, 0.16);
+  --overlay-bg: rgba(15, 23, 42, 0.12);
+  --danger-bg: rgba(220, 38, 38, 0.12);
+  --danger-border: rgba(220, 38, 38, 0.3);
+  --warn-bg: rgba(217, 119, 6, 0.12);
+  --warn-bg-soft: rgba(217, 119, 6, 0.08);
+  --warn-border: rgba(217, 119, 6, 0.3);
+  --success-bg: rgba(22, 163, 74, 0.12);
+  --info-bg: rgba(37, 99, 235, 0.12);
+  --primary-bg: rgba(37, 99, 235, 0.12);
+  --muted-bg: rgba(82, 82, 91, 0.12);
+  --highlight-bg: rgba(234, 179, 8, 0.3);
+  --dot-shadow: 0 0 0 2px rgba(15, 23, 42, 0.2);
+  --panel-tint: rgba(255, 255, 255, 0.7);
+  --empty-state-bg: rgba(255, 255, 255, 0.6);
+}
+
+html[data-theme="dracula"] {
+  color-scheme: dark;
+  --bg-app: #1b1d2a;
+  --bg-sidebar: #151623;
+  --bg-panel: #202235;
+  --bg-input: #262a3f;
+  --bg-hover: #2f3450;
+  --bg-active: #3a3f5e;
+
+  --border-subtle: #2a2e45;
+  --border-main: #3a3f5e;
+
+  --primary: #bd93f9;
+  --primary-hover: #a67af5;
+
+  --text-main: #f8f8f2;
+  --text-muted: #b8b8d4;
+  --text-dim: #7c7f9b;
+
+  --success: #50fa7b;
+  --error: #ff5555;
+  --warn: #ffb86c;
+  --info: #8be9fd;
+
+  --text-on-primary: #0b0b0f;
+  --shadow-soft: 0 12px 32px rgba(8, 10, 22, 0.45);
+  --shadow-strong: 0 18px 50px rgba(8, 10, 22, 0.55);
+  --shadow-menu: 0 18px 40px rgba(8, 10, 22, 0.4);
+  --overlay-bg: rgba(12, 13, 28, 0.7);
+  --danger-bg: rgba(255, 85, 85, 0.18);
+  --danger-border: rgba(255, 85, 85, 0.4);
+  --warn-bg: rgba(255, 184, 108, 0.18);
+  --warn-bg-soft: rgba(255, 184, 108, 0.1);
+  --warn-border: rgba(255, 184, 108, 0.35);
+  --success-bg: rgba(80, 250, 123, 0.18);
+  --info-bg: rgba(139, 233, 253, 0.18);
+  --primary-bg: rgba(189, 147, 249, 0.18);
+  --muted-bg: rgba(184, 184, 212, 0.18);
+  --highlight-bg: rgba(241, 250, 140, 0.35);
+  --dot-shadow: 0 0 0 2px rgba(8, 10, 22, 0.35);
+  --panel-tint: rgba(32, 34, 53, 0.75);
+  --empty-state-bg: rgba(27, 29, 42, 0.5);
 }
 
 * {
@@ -386,7 +493,7 @@ body {
   border-radius: 8px;
   min-width: 160px;
   padding: 6px;
-  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+  box-shadow: var(--shadow-soft);
   display: flex;
   flex-direction: column;
   gap: 4px;
@@ -433,7 +540,7 @@ body {
 .modal-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(12, 12, 14, 0.6);
+  background: var(--overlay-bg);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -445,7 +552,7 @@ body {
   background: var(--bg-panel);
   border: 1px solid var(--border-main);
   border-radius: 12px;
-  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.5);
+  box-shadow: var(--shadow-strong);
   overflow: hidden;
 }
 
@@ -580,7 +687,7 @@ body {
 .env-empty-state {
   border: 1px dashed var(--border-subtle);
   border-radius: 10px;
-  background: rgba(18, 18, 20, 0.5);
+  background: var(--empty-state-bg);
 }
 
 @media (max-width: 900px) {
@@ -597,7 +704,7 @@ body {
   padding: 14px 16px;
   font-weight: 600;
   border-bottom: 1px solid var(--border-subtle);
-  background: rgba(35, 35, 38, 0.6);
+  background: var(--panel-tint);
 }
 
 .modal-body {
@@ -702,7 +809,7 @@ body {
 .modal-button.primary {
   background: var(--primary);
   border-color: var(--primary);
-  color: #0b0b0f;
+  color: var(--text-on-primary);
   font-weight: 600;
 }
 
@@ -716,8 +823,8 @@ body {
 }
 
 .modal-button.danger {
-  background: rgba(248, 113, 113, 0.15);
-  border-color: rgba(248, 113, 113, 0.4);
+  background: var(--danger-bg);
+  border-color: var(--danger-border);
   color: var(--error);
 }
 
@@ -729,13 +836,13 @@ body {
   min-width: 36px;
   text-align: center;
 }
-.method-GET { color: var(--success); background: rgba(52, 211, 153, 0.1); }
-.method-POST { color: var(--info); background: rgba(96, 165, 250, 0.1); }
-.method-PUT { color: var(--warn); background: rgba(251, 191, 36, 0.1); }
-.method-DELETE { color: var(--error); background: rgba(248, 113, 113, 0.1); }
-.method-PATCH { color: var(--primary); background: rgba(129, 140, 248, 0.15); }
-.method-HEAD { color: var(--text-muted); background: rgba(148, 163, 184, 0.15); }
-.method-OPTIONS { color: var(--info); background: rgba(56, 189, 248, 0.15); }
+.method-GET { color: var(--success); background: var(--success-bg); }
+.method-POST { color: var(--info); background: var(--info-bg); }
+.method-PUT { color: var(--warn); background: var(--warn-bg); }
+.method-DELETE { color: var(--error); background: var(--danger-bg); }
+.method-PATCH { color: var(--primary); background: var(--primary-bg); }
+.method-HEAD { color: var(--text-muted); background: var(--muted-bg); }
+.method-OPTIONS { color: var(--info); background: var(--info-bg); }
 
 /* --- Main Content --- */
 .main-content {
@@ -844,7 +951,7 @@ body {
   border: 1px solid var(--border-subtle);
   background: var(--bg-panel);
   border-radius: 14px;
-  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.35);
+  box-shadow: var(--shadow-menu);
   min-width: 320px;
 }
 
@@ -864,7 +971,7 @@ body {
 .empty-cta {
   border: 1px solid var(--primary);
   background: var(--primary);
-  color: #0b0b0f;
+  color: var(--text-on-primary);
   font-weight: 600;
   padding: 8px 16px;
   border-radius: 8px;
@@ -920,7 +1027,7 @@ body {
 .env-select {
   background: var(--bg-input);
   color: var(--text-main);
-  color-scheme: dark;
+  color-scheme: inherit;
   border: 1px solid var(--border-main);
   border-radius: 8px;
   padding: 8px 12px;
@@ -938,7 +1045,7 @@ body {
 .method-select {
   background: var(--bg-input);
   color: var(--text-main);
-  color-scheme: dark;
+  color-scheme: inherit;
   border: 1px solid var(--border-main);
   border-radius: 8px;
   padding: 0 16px;
@@ -976,7 +1083,7 @@ body {
 
 .method-select-http:focus {
   border-color: var(--method-color);
-  box-shadow: inset 4px 0 0 var(--method-color), 0 0 0 3px rgba(79, 70, 229, 0.15);
+  box-shadow: inset 4px 0 0 var(--method-color), 0 0 0 3px var(--primary-bg);
 }
 
 .method-select-http[data-method="GET"] { --method-color: var(--success); }
@@ -1007,7 +1114,7 @@ body {
   height: 10px;
   border-radius: 50%;
   background: var(--method-color);
-  box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.25);
+  box-shadow: var(--dot-shadow);
   pointer-events: none;
 }
 
@@ -1025,7 +1132,7 @@ body {
   border-radius: 12px;
   border: 1px solid var(--border-main);
   background: var(--bg-panel);
-  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.35);
+  box-shadow: var(--shadow-menu);
   display: flex;
   flex-direction: column;
   gap: 4px;
@@ -1058,7 +1165,7 @@ body {
   height: 10px;
   border-radius: 50%;
   background: var(--text-muted);
-  box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.25);
+  box-shadow: var(--dot-shadow);
 }
 
 .method-menu-label {
@@ -1127,8 +1234,8 @@ body {
 
 .env-button.danger {
   color: var(--error);
-  border-color: rgba(248, 113, 113, 0.4);
-  background: rgba(248, 113, 113, 0.15);
+  border-color: var(--danger-border);
+  background: var(--danger-bg);
 }
 
 .url-input {
@@ -1475,7 +1582,7 @@ body {
 .kv-bulk-apply {
   background: var(--primary);
   border-color: var(--primary);
-  color: #0b0b0f;
+  color: var(--text-on-primary);
   font-weight: 600;
 }
 
@@ -1487,7 +1594,7 @@ body {
   padding: 8px 12px;
   font-size: 0.75rem;
   color: var(--warn);
-  background: rgba(251, 191, 36, 0.08);
+  background: var(--warn-bg-soft);
   border-top: 1px solid var(--border-subtle);
 }
 
@@ -1791,7 +1898,7 @@ body {
 
 .settings-toggle input:checked + .settings-toggle-ui {
   border-color: var(--primary);
-  background: rgba(79, 70, 229, 0.2);
+  background: var(--primary-bg);
 }
 
 .settings-toggle input:checked + .settings-toggle-ui::after {
@@ -1876,11 +1983,11 @@ body {
 }
 
 .status-badge.green {
-  background: rgba(52, 211, 153, 0.15);
+  background: var(--success-bg);
   color: var(--success);
 }
 .status-badge.red {
-  background: rgba(248, 113, 113, 0.15);
+  background: var(--danger-bg);
   color: var(--error);
 }
 
@@ -1900,7 +2007,7 @@ body {
 }
 
 .response-preview mark {
-  background: rgba(250, 204, 21, 0.35);
+  background: var(--highlight-bg);
   color: var(--text-main);
   padding: 0 2px;
   border-radius: 2px;
@@ -2039,8 +2146,8 @@ body {
 .cookie-warning {
   padding: 8px 10px;
   border-radius: 8px;
-  border: 1px solid rgba(251, 191, 36, 0.4);
-  background: rgba(251, 191, 36, 0.12);
+  border: 1px solid var(--warn-border);
+  background: var(--warn-bg);
   color: var(--warn);
   font-size: 0.75rem;
 }
@@ -2068,7 +2175,7 @@ body {
 .cookie-add {
   border: none;
   background: var(--primary);
-  color: #0b0b0d;
+  color: var(--text-on-primary);
   padding: 6px 12px;
   border-radius: 8px;
   font-size: 0.8rem;
@@ -2209,7 +2316,7 @@ body {
 
 .cookie-delete:hover {
   color: var(--error);
-  background: rgba(248, 113, 113, 0.1);
+  background: var(--danger-bg);
 }
 
 .cookie-value-button {

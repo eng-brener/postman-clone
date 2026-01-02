@@ -43,6 +43,8 @@ interface SidebarProps {
   onEnvironmentDelete: (id: string) => void;
   onEnvironmentVarChange: (id: string, idx: number, field: keyof KeyValue, val: string | boolean) => void;
   onEnvironmentVarRemove: (id: string, idx: number) => void;
+  theme: "dark" | "light" | "dracula";
+  onThemeChange: (theme: "dark" | "light" | "dracula") => void;
 }
 
 const MethodBadge = ({ method }: { method: string }) => {
@@ -154,6 +156,8 @@ export const Sidebar = ({
   onEnvironmentDelete,
   onEnvironmentVarChange,
   onEnvironmentVarRemove,
+  theme,
+  onThemeChange,
 }: SidebarProps) => {
   const defaultOpen = useMemo(() => {
     const openMap: Record<string, boolean> = {};
@@ -1509,6 +1513,21 @@ export const Sidebar = ({
                 <div className="settings-panel">
                   <div className="settings-title">General</div>
                   <div className="settings-text">Configure app defaults and behavior.</div>
+                  <div className="settings-row">
+                    <div className="settings-meta">
+                      <div className="settings-label">Theme</div>
+                      <div className="settings-desc">Choose your preferred appearance.</div>
+                    </div>
+                    <select
+                      className="settings-select"
+                      value={theme}
+                      onChange={(event) => onThemeChange(event.target.value as "dark" | "light" | "dracula")}
+                    >
+                      <option value="dark">Dark (Current)</option>
+                      <option value="light">Light</option>
+                      <option value="dracula">Dracula</option>
+                    </select>
+                  </div>
                 </div>
               )}
               {settingsTab === "about" && (

@@ -48,6 +48,8 @@ const addEmptyRow = (items: KeyValue[]) => {
   return [...items, emptyRow()];
 };
 const HISTORY_LIMIT = 10;
+const THEME_STORAGE_KEY = "app-theme";
+type ThemeOption = "dark" | "light" | "dracula";
 const REQUEST_TYPE_OPTIONS: RequestType[] = [
   "http",
   "grpc",
@@ -660,6 +662,14 @@ function App() {
     }
   });
 
+  const [theme, setTheme] = useState<ThemeOption>(() => {
+    if (typeof window === "undefined" || !("localStorage" in window)) {
+      return "dark";
+    }
+    const stored = window.localStorage.getItem(THEME_STORAGE_KEY) as ThemeOption | null;
+    return stored === "light" || stored === "dracula" ? stored : "dark";
+  });
+
   useEffect(() => {
     try {
       window.localStorage.setItem(ENV_STORAGE_KEY, JSON.stringify(environments));
@@ -679,6 +689,20 @@ function App() {
       // ignore persistence failures
     }
   }, [activeEnvironmentId]);
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(THEME_STORAGE_KEY, theme);
+    } catch {
+      // ignore persistence failures
+    }
+  }, [theme]);
+
+  useEffect(() => {
+    if (typeof document !== "undefined") {
+      document.documentElement.setAttribute("data-theme", theme);
+    }
+  }, [theme]);
 
   useEffect(() => {
     if (activeEnvironmentId && !environments.some((env) => env.id === activeEnvironmentId)) {
@@ -1619,6 +1643,8 @@ function App() {
         onEnvironmentDelete={handleEnvironmentDelete}
         onEnvironmentVarChange={handleEnvironmentVarChange}
         onEnvironmentVarRemove={handleEnvironmentVarRemove}
+        theme={theme}
+        onThemeChange={setTheme}
       />
 
       <main className="main-content">
@@ -1663,6 +1689,7 @@ function App() {
               environmentValues={environmentValues}
               urlPreview={urlPreview}
               urlIsValid={urlValidation.valid}
+              theme={theme}
               activeRequestTab={activeReqTab}
               onRequestTabChange={setActiveReqTab}
               params={params}

@@ -52,6 +52,7 @@ interface HttpWorkspaceProps {
   onBodyUrlEncodedReplace: (items: KeyValue[]) => void;
   settings: RequestSettings;
   onSettingsChange: (field: keyof RequestSettings, val: any) => void;
+  theme: "dark" | "light" | "dracula";
   activeResponseTab: string;
   onResponseTabChange: (tab: string) => void;
   responseCode: number | null;
@@ -114,6 +115,7 @@ export const HttpWorkspace = ({
   onBodyUrlEncodedReplace,
   settings,
   onSettingsChange,
+  theme,
   activeResponseTab,
   onResponseTabChange,
   responseCode,
@@ -220,6 +222,7 @@ export const HttpWorkspace = ({
               onBodyUrlEncodedReplace={onBodyUrlEncodedReplace}
               settings={settings}
               onSettingsChange={onSettingsChange}
+              theme={theme}
             />
           </div>
         </ResizableBox>
@@ -234,12 +237,13 @@ export const HttpWorkspace = ({
             responseSize={responseSize}
             responseRaw={responseRaw}
             responsePretty={responsePretty}
-            responseHeaders={responseHeaders}
-            errorMessage={errorMessage}
-            responseLanguage={responseLanguage}
-            followRedirects={followRedirects}
-            onFollowRedirectsChange={onFollowRedirectsChange}
-          />
+              responseHeaders={responseHeaders}
+              errorMessage={errorMessage}
+              responseLanguage={responseLanguage}
+              followRedirects={followRedirects}
+              onFollowRedirectsChange={onFollowRedirectsChange}
+              theme={theme}
+            />
         </div>
       </div>
     </>
