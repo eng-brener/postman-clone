@@ -41,8 +41,8 @@ function App() {
   const [activeResTab, setActiveResTab] = useState("Preview");
 
   // Data State (using hooks where appropriate)
-  const [params, setParams] = useKeyValueList([emptyRow()]);
-  const [headers, setHeaders] = useKeyValueList([
+  const [params, setParams, removeParam] = useKeyValueList([emptyRow()]);
+  const [headers, setHeaders, removeHeader] = useKeyValueList([
     { key: "User-Agent", value: "PostmanClone/1.0", enabled: true },
   ]);
 
@@ -56,8 +56,8 @@ function App() {
 }`
   );
   
-  const [bodyFormData, setBodyFormData] = useKeyValueList([emptyRow()]);
-  const [bodyUrlEncoded, setBodyUrlEncoded] = useKeyValueList([emptyRow()]);
+  const [bodyFormData, setBodyFormData, removeBodyFormData] = useKeyValueList([emptyRow()]);
+  const [bodyUrlEncoded, setBodyUrlEncoded, removeBodyUrlEncoded] = useKeyValueList([emptyRow()]);
 
   // Response State
   const [responseCode, setResponseCode] = useState<number | null>(null);
@@ -265,9 +265,11 @@ function App() {
                 
                 params={params}
                 onParamsChange={setParams}
+                onParamsRemove={removeParam}
 
                 headers={headers}
                 onHeadersChange={setHeaders}
+                onHeadersRemove={removeHeader}
                 
                 authType={authType}
                 onAuthTypeChange={setAuthType}
@@ -285,9 +287,11 @@ function App() {
 
                 bodyFormData={bodyFormData}
                 onBodyFormDataChange={setBodyFormData}
+                onBodyFormDataRemove={removeBodyFormData}
 
                 bodyUrlEncoded={bodyUrlEncoded}
                 onBodyUrlEncodedChange={setBodyUrlEncoded}
+                onBodyUrlEncodedRemove={removeBodyUrlEncoded}
 
                 settings={settings}
                 onSettingsChange={handleSettingsChange}

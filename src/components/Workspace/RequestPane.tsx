@@ -1,5 +1,4 @@
 import Editor from "@monaco-editor/react";
-import { Zap, Settings as SettingsIcon } from "lucide-react";
 import { KeyValueEditor } from "../Editors/KeyValueEditor";
 import { BodyType, RawType, KeyValue, RequestSettings, AuthType, AuthData } from "../../types";
 
@@ -274,7 +273,7 @@ export const RequestPane = (props: RequestPaneProps) => {
               )}
               {bodyType === "x-www-form-urlencoded" && (
                 <div style={{ padding: 10 }}>
-                  <KeyValueEditor items={bodyUrlEncoded} onChange={handleUrlEncodedChange} onRemove={onBodyUrlEncodedRemove} />
+                  <KeyValueEditor items={bodyUrlEncoded} onChange={onBodyUrlEncodedChange} onRemove={onBodyUrlEncodedRemove} />
                 </div>
               )}
               {bodyType === "binary" && (
